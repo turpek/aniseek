@@ -73,11 +73,9 @@ class BaseVideoReader(ABC):
         """Encerra os buffers e libera recursos de captura."""
         pass
 
-    def __iter__(self) -> Iterator[tuple[bool, ndarray]]:
+    def __iter__(self) -> Iterator[tuple[bool, ndarray | None]]:
         while not self.is_task_complete:
             ret, frame = self.read()
-            if not ret or frame is None:
-                break
             yield ret, frame
 
     def __enter__(self) -> BaseVideoReader:
@@ -131,8 +129,8 @@ class ForwardReader(BaseVideoReader):
     def read(self) -> tuple[bool, ndarray | None]:
         if self.is_task_complete:
             return False, None
-        _, frame = self.buffer.get()
-        return True, frame
+        frame_id, frame = self.buffer.get()
+        return frame is not None, frame
 
     def close(self) -> None:
         self.buffer.join()
@@ -185,8 +183,8 @@ class ReverseReader(BaseVideoReader):
     def read(self) -> tuple[bool, ndarray | None]:
         if self.is_task_complete:
             return False, None
-        _, frame = self.buffer.get()
-        return True, frame
+        frame_id, frame = self.buffer.get()
+        return frame is not None, frame
 
     def close(self) -> None:
         self.buffer.join()
@@ -279,7 +277,7 @@ class VideoReader(BaseVideoReader):
 
         self._frame_id, frame = self.servant.get()
         self.master.put(self._frame_id, frame)
-        return True, frame
+        return frame is not None, frame
 
     def close(self) -> None:
         self.buf_right.join()

@@ -195,3 +195,22 @@ def test_video_reader_direction_swapping(synthetic_cap):
     assert f3 == 1
     assert is_fwd is True
     assert f4 == 1
+
+
+def test_forward_reader_continues_on_none_frame(synthetic_cap):
+    """Verifica se o iterador continua até o término da tarefa mesmo quando um frame falha."""
+    synthetic_cap.frames[2] = None
+
+    with ForwardReader(synthetic_cap, start=0, end=5, buffersize=5) as reader:
+        results = [(ret, f is not None, reader.frame_id) for ret, f in reader]
+        is_complete = reader.is_task_complete
+
+    expected = [
+        (True, True, 0),
+        (True, True, 1),
+        (False, False, 2),
+        (True, True, 3),
+        (True, True, 4),
+    ]
+    assert results == expected
+    assert is_complete is True
