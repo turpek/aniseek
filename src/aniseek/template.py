@@ -1,7 +1,8 @@
-from pathlib import Path
-from gplayer.adapter import ISectionManagerAdapter, JSONSectionManagerAdapter
-from gplayer.readers import JSONReader
 import json
+from pathlib import Path
+
+from aniseek.adapter import ISectionManagerAdapter
+from aniseek.readers import JSONReader
 
 
 class TemplateFactory:

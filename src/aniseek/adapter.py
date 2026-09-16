@@ -1,18 +1,19 @@
 from __future__ import annotations
-from collections import deque
-from loguru import logger
-from pathlib import Path
-from typing import TYPE_CHECKING
-from gplayer.custom_exceptions import SectionSplitProcessError
-from gplayer.frame_mapper import FrameMapper
-from gplayer.interfaces import ISectionAdapter, ISectionManagerAdapter
-from gplayer.readers import JSONReader, JSONWriter
-from gplayer.utils import partition_by_value
 
 import bisect
+from collections import deque
+from pathlib import Path
+from typing import TYPE_CHECKING
+
+from loguru import logger
+
+from aniseek.custom_exceptions import SectionSplitProcessError
+from aniseek.interfaces import ISectionAdapter, ISectionManagerAdapter
+from aniseek.readers import JSONReader, JSONWriter
+from aniseek.utils import partition_by_value
 
 if TYPE_CHECKING:
-    from gplayer.section import VideoSection
+    from aniseek.section import VideoSection
 
 
 class SectionUnionAdapter(ISectionAdapter):

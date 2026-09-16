@@ -1,18 +1,17 @@
-import cv2
-
 from array import array
-from collections import deque
 from pathlib import Path
 from threading import Semaphore
 
-from gplayer.buffer_left import VideoBufferLeft
-from gplayer.buffer_right import VideoBufferRight
-from gplayer.frame_mapper import FrameMapper
-from gplayer.section import SectionManager
-from gplayer.section_service import SectionService
-from gplayer.player_control import PlayerControl
-from gplayer.trash import Trash
-from gplayer.utils import VideoInfo
+import cv2
+
+from aniseek.buffer_left import VideoBufferLeft
+from aniseek.buffer_right import VideoBufferRight
+from aniseek.frame_mapper import FrameMapper
+from aniseek.player_control import PlayerControl
+from aniseek.section import SectionManager
+from aniseek.section_service import SectionService
+from aniseek.trash import Trash
+from aniseek.utils import VideoInfo
 
 
 class VideoManager:

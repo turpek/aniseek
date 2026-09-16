@@ -1,6 +1,6 @@
-# GPlayer
+# aniseek
 
-**GPlayer** é uma ferramenta avançada de processamento e edição de vídeo, desenvolvida em Python e OpenCV. Diferente de um player convencional, o GPlayer é focado na manipulação precisa de vídeos, permitindo navegação frame a frame, gerenciamento de seções e remoção de frames com funcionalidade de "desfazer".
+**aniseek** é um motor inteligente para busca, navegação e leitura precisa frame a frame de vídeos, desenvolvido em Python. Diferente de um player convencional, o aniseek é focado na manipulação e extração temporal de frames, permitindo avanço e retrocesso instantâneos via buffers concorrentes.
 
 Sua arquitetura é baseada em um sistema de duplo buffer (`BufferLeft` e `BufferRight`), que permite uma navegação eficiente tanto para frente (`proceed`) quanto para trás (`rewind`).
 

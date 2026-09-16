@@ -1,18 +1,21 @@
 from __future__ import annotations
+
 from collections import deque
 from copy import deepcopy
+
 from loguru import logger
-from gplayer.adapter import (
+
+from aniseek.adapter import (
     ISectionAdapter,
     ISectionManagerAdapter,
     SectionSplitProcess,
-    SectionUnionAdapter
+    SectionUnionAdapter,
 )
-from gplayer.custom_exceptions import SectionManagerError
-from gplayer.frame_mapper import FrameMapper
-from gplayer.memento import Caretaker, SectionOriginator
-from gplayer.utils import FrameMementoHandler, SimpleStack, SectionMementoHandler
-from gplayer.trash import Trash
+from aniseek.custom_exceptions import SectionManagerError
+from aniseek.frame_mapper import FrameMapper
+from aniseek.memento import Caretaker, SectionOriginator
+from aniseek.trash import Trash
+from aniseek.utils import FrameMementoHandler, SectionMementoHandler, SimpleStack
 
 
 class VideoSection:

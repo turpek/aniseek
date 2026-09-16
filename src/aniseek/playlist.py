@@ -1,7 +1,8 @@
 from collections import deque
 from pathlib import Path
-from gplayer.custom_exceptions import PlaylistError
-from gplayer.utils import VideoInfo
+
+from aniseek.custom_exceptions import PlaylistError
+from aniseek.utils import VideoInfo
 
 
 class Playlist:

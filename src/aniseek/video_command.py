@@ -1,5 +1,5 @@
-from gplayer.interfaces import Command
-from gplayer.video_controller import VideoController
+from aniseek.interfaces import Command
+from aniseek.video_controller import VideoController
 
 
 class PauseCommand(Command):

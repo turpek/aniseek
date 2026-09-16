@@ -1,7 +1,8 @@
-from array import array
-from gplayer.custom_exceptions import InvalidFrameIdError
-from gplayer.interfaces import IVideoBuffer
 import bisect
+from array import array
+
+from aniseek.custom_exceptions import InvalidFrameIdError
+from aniseek.interfaces import IVideoBuffer
 
 
 class FrameMapper:

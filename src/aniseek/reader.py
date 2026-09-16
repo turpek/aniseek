@@ -1,10 +1,9 @@
-from gplayer.custom_exceptions import VideoOpenError
-from cv2 import VideoCapture
+import traceback
 from time import time
-from gplayer.buffer import Buffer
 
 import cv2
-import traceback
+
+from aniseek.buffer import Buffer
 
 
 def reader_task(buffer: Buffer, data: tuple) -> None:

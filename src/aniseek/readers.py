@@ -1,5 +1,6 @@
 import json
-from gplayer.interfaces import IDataReader, IDataWriter
+
+from aniseek.interfaces import IDataReader, IDataWriter
 
 
 class JSONReader(IDataReader):

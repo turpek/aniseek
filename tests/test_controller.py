@@ -1,13 +1,13 @@
-from gplayer.custom_exceptions import VideoBufferError
-from gplayer.video_command import (RewindCommand,
+from aniseek.custom_exceptions import VideoBufferError
+from aniseek.video_command import (RewindCommand,
                                ProceesCommand,
                                RemoveFrameCommand,
                                UndoFrameCommand)
-from gplayer.video_controller import FakeVideoController as VideoController
-from gplayer.manager import VideoManager
-from gplayer.buffer_left import VideoBufferLeft
-from gplayer.buffer_right import VideoBufferRight
-from gplayer.playlist import Playlist
+from aniseek.video_controller import FakeVideoController as VideoController
+from aniseek.manager import VideoManager
+from aniseek.buffer_left import VideoBufferLeft
+from aniseek.buffer_right import VideoBufferRight
+from aniseek.playlist import Playlist
 from pytest import fixture
 from unittest.mock import patch, MagicMock
 import numpy as np
@@ -65,8 +65,8 @@ class MyVideoCapture():
 def video(mycap, request):
     frames_mapping, buffersize, frame_count, log = request.param
     log = False
-    with patch('gplayer.manager.cv2.VideoCapture', return_value=MyVideoCapture()) as _:
-        with patch('gplayer.manager.SectionManager.get_mapping', return_value=frames_mapping) as _:
+    with patch('aniseek.manager.cv2.VideoCapture', return_value=MyVideoCapture()) as _:
+        with patch('aniseek.manager.SectionManager.get_mapping', return_value=frames_mapping) as _:
             manager = VideoManager(buffersize, log)
             playlist = Playlist(['video-01.mp4'])
             video = VideoController(playlist, frames_mapping, manager)
