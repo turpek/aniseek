@@ -27,14 +27,25 @@ Todos os leitores aceitam os seguintes parâmetros no construtor:
 
 ### Propriedades e Métodos Disponíveis em Todos os Leitores:
 
-- **`reader.read() -> tuple[bool, ndarray | None]`**: Lê o próximo frame na direção atual. Retorna `(True, frame)` ou `(False, None)` se a leitura terminou.
-- **`reader.is_task_complete -> bool`**: Retorna `True` assim que todos os frames da amostragem/fatiamento foram entregues.
+- **`reader.read() -> tuple[bool, ndarray | None]`**: Lê o próximo frame na direção atual. Retorna `(True, frame)` se a decodificação foi bem-sucedida ou `(False, None)` caso a decodificação falhe ou a tarefa tenha chegado ao fim.
+- **`reader.is_task_complete -> bool`**: **A única verdade do ciclo de vida.** Retorna `True` estritamente quando todos os frames planejados pela amostragem/fatiamento foram consumidos.
 - **`reader.frame_id -> int | None`**: Retorna o índice real absoluto do último frame retornado por `read()`.
-- **`reader.total_frames -> int`**: Total de frames brutos do vídeo.
+- **`reader.total_frames -> int`**: Total de frames brutos do vídeo informados pelo container.
 - **`reader.fps -> float`**: Taxa de quadros por segundo do vídeo.
 - **`len(reader) -> int`**: Quantidade total de frames que serão entregues na amostragem atual.
-- **`for ret, frame in reader:`**: Suporte nativo a loop iterador.
+- **`for ret, frame in reader:`**: Suporte nativo a loop iterador. Itera continuamente até `is_task_complete`.
 - **`with ... as reader:`**: Context manager que garante liberação automática de threads e descritores de vídeo via `.close()`.
+
+---
+
+> [!IMPORTANT]
+> ### ⚠️ A Regra de Ouro: `is_task_complete` é a única verdade!
+> No ecossistema OpenCV, containers de vídeo (como MP4/H.264/HEVC) frequentemente apresentam imprecisões no final do arquivo ou pequenos engasgos na decodificação de frames intermediários (retornando `None`).
+>
+> **Nunca utilize `break` ao receber `ret == False` ou `frame is None`!**
+> Se você aplicar um `break`, um único frame com falha descartará todos os frames subsequentes que ainda poderiam ser lidos (causando imagens incompletas em rotinas de costura panorâmica/*stitch* ou interrupções precoces de pipelines).
+>
+> **O padrão resiliente:** use sempre `is_task_complete` para governar o loop e utilize `continue` caso um frame individual falhe.
 
 ---
 
@@ -47,7 +58,7 @@ O `ForwardReader` utiliza internamente um único buffer concorrente (`VideoBuffe
 - **Sentido:** Estritamente crescente (`start -> end`).
 - **Otimização:** Descarta frames pulados via `cap.grab()` sem carregar decodificação de imagem na CPU/GPU.
 
-### Exemplo de Uso:
+### Exemplo de Uso Resiliente:
 
 ```python
 from pathlib import Path
@@ -55,20 +66,23 @@ from aniseek import ForwardReader
 
 video_path = Path("video.mp4")
 
-# 1. Leitura padrão com fatiamento (frames 100 a 300, pulando de 2 em 2)
+# 1. Leitura padrão via while (controlado estritamente por is_task_complete)
 with ForwardReader(video_path, start=100, end=300, step=2) as reader:
     print(f"Total de frames amostrados: {len(reader)}")
 
     while not reader.is_task_complete:
         ret, frame = reader.read()
         if not ret or frame is None:
-            break
-        print(f"Frame lido com sucesso: {reader.frame_id}")
+            # Pula eventuais falhas do decoder sem abortar a tarefa
+            continue
+        process_frame(reader.frame_id, frame)
 
-# 2. Leitura com lista arbitrária de frames usando protocolo de iterador
+# 2. Leitura idiomática via protocolo de iterador
+# O próprio iterador continua consumindo até reader.is_task_complete
 with ForwardReader(video_path, frames=[10, 25, 30, 150, 500]) as reader:
     for ret, frame in reader:
-        # 'ret' é booleano indicando sucesso e 'frame' é o numpy.ndarray
+        if not ret or frame is None:
+            continue
         process_frame(reader.frame_id, frame)
 ```
 
@@ -76,7 +90,7 @@ with ForwardReader(video_path, frames=[10, 25, 30, 150, 500]) as reader:
 
 ## 3. `ReverseReader` (Leitura Reversa)
 
-O `ReverseReader` opera com o `VideoBufferLeft`, projetado para decodificar e entregar frames em ordem decrescente. Como decodificadores de vídeo (H.264, HEVC, etc.) não conseguem decodificar nativamente para trás sem keyframes, o `VideoBufferLeft` divide a leitura em blocos no sentido inverso e alimenta uma fila de saída em ordem decrescente de forma assíncrona.
+O `ReverseReader` opera com o `VideoBufferLeft`, projetado para decodificar e entregar frames em ordem decrescente. Como decodificadores de vídeo não conseguem decodificar nativamente para trás sem keyframes, o `VideoBufferLeft` divide a leitura em blocos no sentido inverso e alimenta uma fila de saída em ordem decrescente de forma assíncrona.
 
 ### Características:
 - **Consumo de Memória:** Baixo (apenas 1 fila de buffer reverso).
@@ -92,8 +106,8 @@ from aniseek import ReverseReader
 with ReverseReader("video.mp4", start=940, end=1000) as reader:
     while not reader.is_task_complete:
         ret, frame = reader.read()
-        if not ret:
-            break
+        if not ret or frame is None:
+            continue
         print(f"Frame lido em ordem reversa: {reader.frame_id}")
 ```
 
@@ -126,6 +140,8 @@ with VideoReader("video.mp4", start=0, end=500) as reader:
     # Avança os primeiros 50 frames
     for _ in range(50):
         ret, frame = reader.read()
+        if not ret or frame is None:
+            continue
         print(f"Avançando: frame {reader.frame_id}")
 
     # Alterna instantaneamente para trás
@@ -135,6 +151,8 @@ with VideoReader("video.mp4", start=0, end=500) as reader:
     # Lê 20 frames para trás (reaproveita cache dos frames decodificados)
     for _ in range(20):
         ret, frame = reader.read()
+        if not ret or frame is None:
+            continue
         print(f"Retrocedendo: frame {reader.frame_id}")
 
     # Retoma avanço
@@ -156,6 +174,6 @@ with VideoReader("video.mp4", start=0, end=500) as reader:
 | **Uso de Memória** | Mínimo | Mínimo | Moderado (~2x `buffersize`) |
 | **Fatiamento (`start`/`end`/`step`)** | ✅ Sim | ✅ Sim | ✅ Sim |
 | **Lista de Frames Arbitrária** | ✅ Sim | ✅ Sim | ✅ Sim |
-| **Indicação `is_task_complete`** | ✅ Sim | ✅ Sim | ✅ Sim |
+| **Indicação `is_task_complete`** | ✅ Sim (Soberano) | ✅ Sim (Soberano) | ✅ Sim (Soberano) |
 | **Context Manager (`with`)** | ✅ Sim | ✅ Sim | ✅ Sim |
 | **Caso Recomendado** | Pipelines lineares e inferência de IA | Inspeções retrospectivas pontuais | Navegação interativa em UI / Players |
