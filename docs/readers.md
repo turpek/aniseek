@@ -19,11 +19,15 @@ Todos os leitores aceitam os seguintes parâmetros no construtor:
 | Parâmetro | Tipo | Padrão | Descrição |
 | :--- | :--- | :--- | :--- |
 | `video` | `str \| Path \| cv2.VideoCapture` | *Obrigatório* | Caminho para o arquivo de vídeo ou uma instância existente de `cv2.VideoCapture`. |
-| `start` | `int \| None` | `None` (0) | Índice do primeiro frame da amostragem (inclusivo). |
-| `end` | `int \| None` | `None` (total) | Índice limite do frame (exclusivo, como em slices do Python). |
+| `start` | `int \| float \| str \| None` | `None` (0) | Ponto inicial: aceita índice de frame (`int`), segundos (`float`) ou timestamp (`str` ex: `"01:30"`). |
+| `end` | `int \| float \| str \| None` | `None` (total) | Ponto final limite: aceita índice de frame (`int`), segundos (`float`) ou timestamp (`str` ex: `"02:45"`). |
 | `step` | `int` | `1` | Intervalo entre frames amostrados (pula intermediários com `cap.grab()`). |
 | `frames` | `list[int] \| None` | `None` | Lista explícita e arbitrária de índices de frames a decodificar. Sobrepõe `start`/`end`/`step`. |
 | `buffersize` | `int` | `30` | Capacidade máxima da fila em memória para pré-carregamento concorrente. |
+
+> [!TIP]
+> **Conversão Automática e Determinística:**
+> Se `start` ou `end` forem informados em formato temporal (`float` ou `str`), o leitor utiliza internamente a função [`resolve_frame_range`](file:///home/gui/python/aniseek/src/aniseek/time_utils.py) para convertê-los em índices inteiros exatos usando o `fps` real do vídeo. Assim, todo o pipeline interno e os buffers continuam trabalhando puramente com números inteiros (`int`).
 
 ### Propriedades e Métodos Disponíveis em Todos os Leitores:
 
