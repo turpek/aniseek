@@ -9,6 +9,7 @@ except PackageNotFoundError:
 
 from aniseek.video_reader import (
     BaseVideoReader,
+    Direction,
     ForwardReader,
     ReverseReader,
     VideoReader,
@@ -16,6 +17,7 @@ from aniseek.video_reader import (
 
 __all__ = [
     "BaseVideoReader",
+    "Direction",
     "ForwardReader",
     "ReverseReader",
     "VideoReader",

@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import pytest
 
-from aniseek.video_reader import ForwardReader, ReverseReader, VideoReader
+from aniseek.video_reader import Direction, ForwardReader, ReverseReader, VideoReader
 from tests.uteis import MyVideoCapture
 
 
@@ -157,22 +157,31 @@ def test_video_reader_initial_forward(synthetic_cap):
     assert result_ids == [0, 1, 2, 3, 4]
 
 
+def test_direction_enum_values():
+    """Valida se o enum Direction possui os valores esperados e é compatível com string."""
+    assert Direction.FORWARD == "forward"
+    assert Direction.REVERSE == "reverse"
+    assert isinstance(Direction.FORWARD, str)
+
+
 def test_video_reader_initial_reverse(synthetic_cap):
-    """Valida VideoReader inicializado em modo reverso."""
+    """Valida VideoReader inicializado em modo reverso usando Direction.REVERSE."""
     with VideoReader(
         synthetic_cap,
         start=0,
         end=5,
-        direction="reverse",
+        direction=Direction.REVERSE,
         buffersize=5,
     ) as reader:
+        initial_dir = reader.direction
         result_ids = [reader.frame_id for _, _ in reader]
 
+    assert initial_dir == Direction.REVERSE
     assert result_ids == [4, 3, 2, 1, 0]
 
 
 def test_video_reader_direction_swapping(synthetic_cap):
-    """Valida troca dinâmica de direção entre proceed e rewind."""
+    """Valida troca dinâmica de direção entre proceed e rewind e propriedade direction."""
     with VideoReader(synthetic_cap, start=0, end=10, buffersize=5) as reader:
         ret_1, _ = reader.read()
         f1 = reader.frame_id
@@ -181,19 +190,23 @@ def test_video_reader_direction_swapping(synthetic_cap):
 
         reader.rewind()
         is_rev = reader.is_reverse
+        dir_rev = reader.direction
         ret_3, _ = reader.read()
         f3 = reader.frame_id
 
         reader.proceed()
         is_fwd = reader.is_forward
+        dir_fwd = reader.direction
         ret_4, _ = reader.read()
         f4 = reader.frame_id
 
     assert f1 == 0
     assert f2 == 1
     assert is_rev is True
+    assert dir_rev == Direction.REVERSE
     assert f3 == 1
     assert is_fwd is True
+    assert dir_fwd == Direction.FORWARD
     assert f4 == 1
 
 
