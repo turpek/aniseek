@@ -3,7 +3,7 @@ name = "aniseek"
 version = "0.1.0a"
 description = "Motor inteligente para busca, navegação e leitura precisa de frames de vídeo"
 readme = "README.md"
-requires-python = ">=3.12.5"
+requires-python = ">=3.12"
 dependencies = [
     "loguru>=0.7.3",
     "numpy>=2.0.0",
