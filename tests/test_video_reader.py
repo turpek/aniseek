@@ -227,3 +227,19 @@ def test_forward_reader_continues_on_none_frame(synthetic_cap):
     ]
     assert results == expected
     assert is_complete is True
+
+
+def test_reader_with_time_string_range(synthetic_cap):
+    """Valida inicialização do leitor passando strings de tempo MM:SS para start e end."""
+    with ForwardReader(synthetic_cap, start="00:01", end="00:02", buffersize=5) as reader:
+        frame_ids = reader.frame_ids
+
+    assert frame_ids == list(range(24, 48))
+
+
+def test_reader_with_float_seconds_range(synthetic_cap):
+    """Valida inicialização do leitor passando segundos float para start e end."""
+    with ForwardReader(synthetic_cap, start=0.5, end=1.5, buffersize=5) as reader:
+        frame_ids = reader.frame_ids
+
+    assert frame_ids == list(range(12, 36))

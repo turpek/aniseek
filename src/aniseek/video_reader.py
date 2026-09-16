@@ -12,6 +12,7 @@ from numpy import ndarray
 from aniseek.buffer_left import VideoBufferLeft
 from aniseek.buffer_right import VideoBufferRight
 from aniseek.frame_mapper import FrameMapper
+from aniseek.time_utils import resolve_frame_range
 
 
 class Direction(StrEnum):
@@ -28,8 +29,8 @@ class BaseVideoReader(ABC):
         self,
         video: str | Path | cv2.VideoCapture,
         *,
-        start: int | None = None,
-        end: int | None = None,
+        start: int | float | str | None = None,
+        end: int | float | str | None = None,
         step: int = 1,
         frames: list[int] | None = None,
         buffersize: int = 30,
@@ -47,8 +48,7 @@ class BaseVideoReader(ABC):
         if frames is not None:
             self.frame_ids = sorted(frames)
         else:
-            _start = 0 if start is None else max(0, start)
-            _end = self.total_frames if end is None else min(self.total_frames, end)
+            _start, _end = resolve_frame_range(self.total_frames, start, end, self.fps)
             _step = 1 if step is None or step < 1 else step
             self.frame_ids = list(range(_start, _end, _step))
 
@@ -100,8 +100,8 @@ class ForwardReader(BaseVideoReader):
         self,
         video: str | Path | cv2.VideoCapture,
         *,
-        start: int | None = None,
-        end: int | None = None,
+        start: int | float | str | None = None,
+        end: int | float | str | None = None,
         step: int = 1,
         frames: list[int] | None = None,
         buffersize: int = 30,
@@ -153,8 +153,8 @@ class ReverseReader(BaseVideoReader):
         self,
         video: str | Path | cv2.VideoCapture,
         *,
-        start: int | None = None,
-        end: int | None = None,
+        start: int | float | str | None = None,
+        end: int | float | str | None = None,
         step: int = 1,
         frames: list[int] | None = None,
         buffersize: int = 30,
@@ -207,8 +207,8 @@ class VideoReader(BaseVideoReader):
         self,
         video: str | Path | cv2.VideoCapture,
         *,
-        start: int | None = None,
-        end: int | None = None,
+        start: int | float | str | None = None,
+        end: int | float | str | None = None,
         step: int = 1,
         frames: list[int] | None = None,
         direction: Direction | str = Direction.FORWARD,
