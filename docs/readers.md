@@ -125,18 +125,21 @@ O `VideoReader` é a estrutura mais avançada da biblioteca, voltada para aplica
 
 ### Métodos e Propriedades Exclusivos do `VideoReader`:
 
+- **`reader.direction -> Direction`**: Retorna o sentido de reprodução ativo no momento (`Direction.FORWARD` ou `Direction.REVERSE`).
 - **`reader.proceed()`**: Altera o sentido ativo para avanço (`+1`).
 - **`reader.rewind()`**: Altera o sentido ativo para retrocesso (`-1`).
 - **`reader.is_forward -> bool`**: Retorna `True` se o sentido atual for avanço.
 - **`reader.is_reverse -> bool`**: Retorna `True` se o sentido atual for retrocesso.
-- **Parâmetro `direction` no construtor**: Permite iniciar diretamente em `"forward"` (padrão) ou `"reverse"`.
+- **Parâmetro `direction` no construtor**: Permite iniciar diretamente em `Direction.FORWARD` (padrão) ou `Direction.REVERSE` (strings `"forward"` e `"reverse"` também são aceitas por retrocompatibilidade).
 
 ### Exemplo de Uso:
 
 ```python
-from aniseek import VideoReader
+from aniseek import Direction, VideoReader
 
-with VideoReader("video.mp4", start=0, end=500) as reader:
+# Inicia a leitura configurada para avanço padrão (ou Direction.REVERSE)
+with VideoReader("video.mp4", start=0, end=500, direction=Direction.FORWARD) as reader:
+    print(f"Direção inicial: {reader.direction}")  # Direction.FORWARD
     # Avança os primeiros 50 frames
     for _ in range(50):
         ret, frame = reader.read()
