@@ -1,29 +1,62 @@
 [project]
-name = "gplayer"
+name = "aniseek"
 version = "0.1.0"
-description = "Add your description here"
+description = "Motor inteligente para busca, navegação e leitura precisa de frames de vídeo"
 readme = "README.md"
 requires-python = ">=3.12.5"
 dependencies = [
     "loguru>=0.7.3",
-    "opencv-python>=4.12.0.88",
+    "numpy>=2.0.0",
+    "opencv-python>=4.10.0",
     "pathlib3x>=2.0.3",
 ]
 
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
 [dependency-groups]
 dev = [
+    "autopep8>=2.3.2",
     "ipdb>=0.13.13",
     "ipython>=9.8.0",
+    "mypy>=1.10.0",
     "pytest>=9.0.2",
+    "pytest-cov>=5.0.0",
+    "ruff>=0.9.0",
 ]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 pythonpath = ["src"]
+norecursedirs = [
+    ".*",
+    "build",
+    "dist",
+    "scripts",
+    "scratch",
+    ".venv",
+    "docs",
+]
 markers = [
     "undo: tests related to undo operations",
     "backward: tests related to backward playback/seek",
     "forward: tests related to forward playback/seek",
     "dev0: temporary or experimental tests",
+    "slow: marca testes pesados ou demorados",
 ]
 
+[tool.ruff]
+line-length = 89
+target-version = "py312"
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I"]
+extend-select = ["PLC0415"]
+ignore = ["E501", "E741"]
+
+[tool.autopep8]
+max_line_length = 89
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/aniseek"]

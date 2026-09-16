@@ -1,7 +1,7 @@
 from pytest import fixture, raises
-from gplayer.custom_exceptions import InvalidFrameIdError
-from gplayer.frame_mapper import FrameMapper
-from gplayer.interfaces import IFakeVideoBuffer
+from aniseek.custom_exceptions import InvalidFrameIdError
+from aniseek.frame_mapper import FrameMapper
+from aniseek.interfaces import IFakeVideoBuffer
 import pytest
 
 

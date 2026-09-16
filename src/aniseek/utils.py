@@ -1,18 +1,24 @@
 from __future__ import annotations
+
 from collections import deque
-from gplayer.custom_exceptions import FrameStackError, FrameWrapperError, SimpleStackError
-from gplayer.interfaces import IMementoHandler
-from gplayer.memento import Caretaker
-from numpy import ndarray
 from pathlib import Path
 from typing import TYPE_CHECKING
 
 import cv2
+from numpy import ndarray
+
+from aniseek.custom_exceptions import (
+    FrameStackError,
+    FrameWrapperError,
+    SimpleStackError,
+)
+from aniseek.interfaces import IMementoHandler
+from aniseek.memento import Caretaker
 
 if TYPE_CHECKING:
-    from gplayer.section import VideoSection
-    from gplayer.memento import TrashOriginator, SectionOriginator
-    from gplayer.trash import Trash
+    from aniseek.memento import SectionOriginator, TrashOriginator
+    from aniseek.section import VideoSection
+    from aniseek.trash import Trash
 
 
 class SimpleStack:

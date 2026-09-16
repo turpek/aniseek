@@ -1,31 +1,33 @@
+from time import sleep
+
+import cv2
 from loguru import logger
-from gplayer.playlist import Playlist
-from gplayer.video_command import (
-    Invoker,
+
+from aniseek.adapter import ISectionManagerAdapter
+from aniseek.manager import VideoManager
+from aniseek.playlist import Playlist
+from aniseek.video_command import (
     DecreaseSpeedCommand,
     IncreaseSpeedCommand,
+    Invoker,
     JoinSectionCommand,
     NextSectionCommand,
     NextVideoCommand,
+    PauseCommand,
     PauseDelayCommand,
-    PrevVideoCommand,
     PrevSectionCommand,
+    PrevVideoCommand,
+    ProceesCommand,
+    QuitCommand,
     RemoveFrameCommand,
     RemoveSectionCommand,
     RestoreDelayCommand,
     RewindCommand,
-    PauseCommand,
-    ProceesCommand,
-    QuitCommand,
     SplitSectionCommand,
     UndoFrameCommand,
-    UndoSectionCommand
+    UndoSectionCommand,
 )
-from gplayer.manager import VideoManager
-from gplayer.adapter import ISectionManagerAdapter
-from gplayer.video_controller import VideoController
-from time import sleep
-import cv2
+from aniseek.video_controller import VideoController
 
 
 class VideoCon:

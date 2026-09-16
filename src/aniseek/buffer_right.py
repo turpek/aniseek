@@ -19,17 +19,19 @@ módulo da opencv, a mesma tem a seguinte estrutura:
 """
 
 
+import bisect
+from threading import Semaphore, Thread
+
+import cv2
 from cv2 import VideoCapture
 from loguru import logger
 from numpy import ndarray
-from gplayer.buffer import BufferRight
-from gplayer.frame_mapper import FrameMapper
-from gplayer.reader import reader
-from gplayer.interfaces import IVideoBuffer
-from gplayer.custom_exceptions import VideoBufferError
-from threading import Semaphore, Thread
-import bisect
-import cv2
+
+from aniseek.buffer import BufferRight
+from aniseek.custom_exceptions import VideoBufferError
+from aniseek.frame_mapper import FrameMapper
+from aniseek.interfaces import IVideoBuffer
+from aniseek.reader import reader
 
 
 class VideoBufferRight(IVideoBuffer):

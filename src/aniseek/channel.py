@@ -1,6 +1,5 @@
 from queue import Queue
 from threading import Lock
-import queue
 
 
 class _Channel:
@@ -64,6 +63,7 @@ class Channel1:
     """
     Classe para comunicação em uma direção entre o programa e a threads
     """
+
     def __init__(self):
         self.__conn = Queue()
 

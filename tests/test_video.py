@@ -1,11 +1,12 @@
 from array import array
-from pytest import fixture
-from gplayer.video import VideoCon
 from unittest.mock import patch
 
 import cv2
 import numpy as np
 import pytest
+from pytest import fixture
+
+from aniseek.video import VideoCon
 
 
 class MyVideoCapture():
@@ -49,21 +50,22 @@ class MyVideoCapture():
 
 @fixture
 def mycap():
-    with patch('gplayer.video.cv2.VideoCapture', return_value=MyVideoCapture()) as mock:
+    with patch('aniseek.video.cv2.VideoCapture', return_value=MyVideoCapture()) as mock:
         yield mock
 
 
 @fixture
 def creating_window():
-    with patch('gplayer.video.VideoCon._VideoCon__creating_window', return_value=None) as mock:
+    with patch('aniseek.video.VideoCon._VideoCon__creating_window', return_value=None) as mock:
         yield mock
 
 
 @fixture
 def myvideo(mycap, creating_window):
-    video = VideoCon('model.mp4')
-    yield video
-    video.join()
+    with patch('aniseek.manager.SectionManager.get_mapping', return_value=list(range(300))):
+        video = VideoCon('model.mp4')
+        yield video
+        video.join()
 
 
 @pytest.mark.skip('deprecado')

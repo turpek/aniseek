@@ -1,12 +1,14 @@
-from cv2 import VideoCapture
 from collections import deque
-from loguru import logger
-from gplayer.buffer_right import VideoBufferRight
-from gplayer.frame_mapper import FrameMapper
-from gplayer.utils import FrameWrapper, FrameStack
-from gplayer.memento import Caretaker, TrashOriginator
 from threading import Semaphore
+
+from cv2 import VideoCapture
+from loguru import logger
 from numpy import ndarray
+
+from aniseek.buffer_right import VideoBufferRight
+from aniseek.frame_mapper import FrameMapper
+from aniseek.memento import Caretaker, TrashOriginator
+from aniseek.utils import FrameStack, FrameWrapper
 
 
 class Trash():

@@ -37,11 +37,13 @@ class BufferLeft(Buffer):
 
 from abc import ABC, abstractmethod
 from collections import deque
-from loguru import logger
 from queue import Queue
-from gplayer.channel import Channel1
-from gplayer.custom_exceptions import VideoBufferError
 from threading import Event, Lock, Semaphore
+
+from loguru import logger
+
+from aniseek.channel import Channel1
+from aniseek.custom_exceptions import VideoBufferError
 
 
 class Buffer(ABC, Channel1):

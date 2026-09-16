@@ -1,7 +1,9 @@
-import cv2
-from threading import Thread, Event, Lock
-from queue import LifoQueue
 import time
+from queue import LifoQueue
+from threading import Event, Lock, Thread
+
+import cv2
+
 
 class VideoBuffer(Thread):
     def __init__(self, cap, stack, *, name='buffer'):
@@ -37,6 +39,7 @@ class VideoBuffer(Thread):
         self._stopped = True
         self.restock_event.set()  # Ensure the thread can exit if it's waiting
 
+
 # Exemplo de uso
 cap = cv2.VideoCapture('model.mp4')
 frames = LifoQueue(maxsize=100)
@@ -60,4 +63,3 @@ while True:
 video_buffer.stop()
 cap.release()
 cv2.destroyAllWindows()
-

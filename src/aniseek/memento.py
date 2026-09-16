@@ -1,11 +1,13 @@
 from __future__ import annotations
+
 from collections import deque
-from gplayer.frame_mapper import FrameMapper
-from gplayer.interfaces import IMemento, IOriginator
 from typing import TYPE_CHECKING
 
+from aniseek.frame_mapper import FrameMapper
+from aniseek.interfaces import IMemento, IOriginator
+
 if TYPE_CHECKING:
-    from gplayer.section import SectionWrapper
+    from aniseek.section import SectionWrapper
 
 
 class TrashMemento(IMemento):

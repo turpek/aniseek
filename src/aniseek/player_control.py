@@ -1,8 +1,9 @@
 from loguru import logger
 from numpy import ndarray
-from gplayer.buffer_left import VideoBufferLeft
-from gplayer.buffer_right import VideoBufferRight
-from gplayer.interfaces import IVideoBuffer
+
+from aniseek.buffer_left import VideoBufferLeft
+from aniseek.buffer_right import VideoBufferRight
+from aniseek.interfaces import IVideoBuffer
 
 
 class PlayerControl:

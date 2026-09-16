@@ -1,9 +1,7 @@
 from loguru import logger
-from gplayer.manager import VideoManager
-from gplayer.playlist import Playlist
-from gplayer.section import SectionManager
-from gplayer.adapter import FakeSectionAdapter, FakeSectionManagerAdapter
-from numpy import ndarray
+
+from aniseek.manager import VideoManager
+from aniseek.playlist import Playlist
 
 fake = {
     'SECTIONS':

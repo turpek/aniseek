@@ -1,5 +1,5 @@
 from pytest import fixture
-from gplayer.buffer import BufferRight
+from aniseek.buffer import BufferRight
 from threading import Semaphore
 import numpy as np
 

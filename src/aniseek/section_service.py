@@ -1,7 +1,8 @@
-from gplayer.template import TemplateFactory, SectionManagerProcessFactory
-from gplayer.adapter import JSONSectionManagerAdapter, JSONSectionSave
-from gplayer.section import SectionManager
 from pathlib import Path
+
+from aniseek.adapter import JSONSectionManagerAdapter, JSONSectionSave
+from aniseek.section import SectionManager
+from aniseek.template import SectionManagerProcessFactory, TemplateFactory
 
 
 class SectionService:
