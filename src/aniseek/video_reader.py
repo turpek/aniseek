@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from abc import ABC, abstractmethod
+from enum import StrEnum
 from pathlib import Path
 from threading import Semaphore
 from typing import Iterator
@@ -11,6 +12,13 @@ from numpy import ndarray
 from aniseek.buffer_left import VideoBufferLeft
 from aniseek.buffer_right import VideoBufferRight
 from aniseek.frame_mapper import FrameMapper
+
+
+class Direction(StrEnum):
+    """Sentido de reprodução e amostragem de frames."""
+
+    FORWARD = "forward"
+    REVERSE = "reverse"
 
 
 class BaseVideoReader(ABC):
@@ -203,7 +211,7 @@ class VideoReader(BaseVideoReader):
         end: int | None = None,
         step: int = 1,
         frames: list[int] | None = None,
-        direction: str = "forward",
+        direction: Direction | str = Direction.FORWARD,
         buffersize: int = 30,
     ) -> None:
         super().__init__(
@@ -228,7 +236,7 @@ class VideoReader(BaseVideoReader):
         )
         self._frame_id: int | None = None
 
-        if direction == "reverse":
+        if direction == Direction.REVERSE:
             if len(self.frame_ids) > 0:
                 self.buf_left.set(self.frame_ids[-1] + 1)
             self.servant = self.buf_left
@@ -250,6 +258,11 @@ class VideoReader(BaseVideoReader):
     @property
     def frame_id(self) -> int | None:
         return self._frame_id
+
+    @property
+    def direction(self) -> Direction:
+        """Retorna a direção de reprodução ativa no momento."""
+        return Direction.FORWARD if self.is_forward else Direction.REVERSE
 
     @property
     def is_forward(self) -> bool:
