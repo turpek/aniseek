@@ -49,6 +49,8 @@ BaseVideoReader(
 ### Propriedades e Métodos Disponíveis em Todos os Leitores:
 
 - **`reader.read() -> tuple[bool, ndarray | None]`**: Lê o próximo frame na direção atual. Retorna `(True, frame)` se a decodificação teve sucesso ou `(False, None)` caso a tarefa tenha chegado ao fim ou um frame esteja corrompido.
+- **`reader.set_frame(frame_id: int) -> None`**: Reposiciona o cursor de leitura diretamente para o índice de frame numérico indicado.
+- **`reader.set_bounds(start: int, end: int) -> None`**: Redefine dinamicamente os limites de fatiamento (`start` e `end`) da leitura ativa.
 - **`reader.is_task_complete -> bool`**: **A única verdade do ciclo de vida.** Retorna `True` estritamente quando todos os frames planejados pela amostragem/fatiamento foram consumidos.
 - **`reader.frame_id -> int | None`**: Retorna o índice real absoluto do último frame retornado por `read()`.
 - **`reader.total_frames -> int`**: Total de frames brutos do vídeo informados pelo container.
