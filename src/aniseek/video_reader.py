@@ -77,6 +77,16 @@ class BaseVideoReader(ABC):
         pass
 
     @abstractmethod
+    def set_frame(self, frame_id: int) -> None:
+        """Reposiciona o cursor de leitura para o frame indicado."""
+        pass
+
+    def set_bounds(self, start: int, end: int) -> None:
+        """Redefine os limites de fatiamento da leitura."""
+        self.frame_ids = list(range(start, end))
+        self.mapping.set_mapping(self.frame_ids, self.total_frames, [])
+
+    @abstractmethod
     def close(self) -> None:
         """Encerra os buffers e libera recursos de captura."""
         pass
@@ -140,6 +150,9 @@ class ForwardReader(BaseVideoReader):
         frame_id, frame = self.buffer.get()
         return frame is not None, frame
 
+    def set_frame(self, frame_id: int) -> None:
+        self.buffer.set(frame_id)
+
     def close(self) -> None:
         self.buffer.join()
         if self._owns_cap and hasattr(self.cap, "release"):
@@ -193,6 +206,9 @@ class ReverseReader(BaseVideoReader):
             return False, None
         frame_id, frame = self.buffer.get()
         return frame is not None, frame
+
+    def set_frame(self, frame_id: int) -> None:
+        self.buffer.set(frame_id)
 
     def close(self) -> None:
         self.buffer.join()
@@ -291,6 +307,10 @@ class VideoReader(BaseVideoReader):
         self._frame_id, frame = self.servant.get()
         self.master.put(self._frame_id, frame)
         return frame is not None, frame
+
+    def set_frame(self, frame_id: int) -> None:
+        self.servant.set(frame_id)
+        self.master.set(frame_id)
 
     def close(self) -> None:
         self.buf_right.join()

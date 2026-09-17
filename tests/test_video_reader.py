@@ -243,3 +243,37 @@ def test_reader_with_float_seconds_range(synthetic_cap):
         frame_ids = reader.frame_ids
 
     assert frame_ids == list(range(12, 36))
+
+
+def test_forward_reader_set_frame(synthetic_cap):
+    """Valida reposicionamento do cursor de leitura no ForwardReader via set_frame."""
+    with ForwardReader(synthetic_cap, start=0, end=20, buffersize=5) as reader:
+        reader.read()
+        reader.read()
+        reader.set_frame(10)
+        reader.read()
+        target_id = reader.frame_id
+
+    assert target_id == 10
+
+
+def test_video_reader_set_frame_forward(synthetic_cap):
+    """Valida reposicionamento do cursor no VideoReader em modo avanço via set_frame."""
+    with VideoReader(synthetic_cap, start=0, end=20, buffersize=5) as reader:
+        reader.read()
+        reader.set_frame(14)
+        reader.read()
+        target_id = reader.frame_id
+
+    assert target_id == 14
+
+
+def test_video_reader_set_bounds(synthetic_cap):
+    """Valida redefinição dinâmica dos limites de fatiamento via set_bounds."""
+    with VideoReader(synthetic_cap, start=0, end=20, buffersize=5) as reader:
+        reader.read()
+        reader.set_bounds(5, 10)
+        reader.set_frame(5)
+        remaining = [reader.frame_id for _, _ in reader]
+
+    assert remaining == [5, 6, 7, 8, 9]
