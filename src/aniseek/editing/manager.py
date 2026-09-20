@@ -5,6 +5,7 @@ from threading import Semaphore
 from aniseek.core.buffer_left import VideoBufferLeft
 from aniseek.core.buffer_right import VideoBufferRight
 from aniseek.core.frame_mapper import FrameMapper
+from aniseek.core.interfaces.buffer import IVideoBuffer
 from aniseek.core.sources.opencv import OpenCVVideoSource
 from aniseek.editing.player_control import PlayerControl
 from aniseek.editing.section import SectionManager
@@ -64,22 +65,29 @@ class VideoManager:
         self.trash = Trash(*args, buffersize=20)
         section_manager.load_mementos_frames(self.trash)
 
-    def load_player(self, servant: VideoBufferRight, master: VideoBufferLeft):
+    def load_player(self, servant: IVideoBuffer, master: IVideoBuffer):
         self.player.set_buffers(servant, master)
 
     def load_buffers(self):
         args = (self.source, self.mapping, self.semaphore)
         bsize, log = self.__buffersize, self.__log
-        self.servant = VideoBufferRight(*args, buffersize=bsize, bufferlog=log)
-        self.master = VideoBufferLeft(*args, buffersize=bsize, bufferlog=log)
+        right = VideoBufferRight(*args, buffersize=bsize, bufferlog=log)
+        left = VideoBufferLeft(*args, buffersize=bsize, bufferlog=log)
+
+        if self.player is not None and self.player.is_rewind:
+            self.servant, self.master = left, right
+        else:
+            self.servant, self.master = right, left
+
         self.load_player(self.servant, self.master)
 
-    def create(self, section_manager: SectionManager):
+    def create(self, section_manager: SectionManager, mapping: list[int] | None = None):
 
         section_manager.load_mementos_frames(self.trash)
         self.player.servant.join_like()
         self.player.master.join_like()
-        self.load_mapping(section_manager.get_mapping())
+        map_frames = mapping if mapping is not None else section_manager.get_mapping()
+        self.load_mapping(map_frames)
         self.load_buffers()
 
     def open(self, file_path: Path, label: str, file_format: str) -> SectionManager:

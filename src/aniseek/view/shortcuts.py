@@ -33,6 +33,10 @@ CV2_SHORTCUTS: dict[int, str] = {
     ord('X'): 'RemoveSectionCommand',
     IP.SHIFT_BIT | ord('u'): 'UndoSectionCommand',
     ord('U'): 'UndoSectionCommand',
+    IP.KEY_HOME: 'JumpSectionStartCommand',
+    IP.KEY_END: 'JumpSectionEndCommand',
+    ord('v'): 'TogglePreviewCommand',
+    ord('V'): 'TogglePreviewCommand',
 }
 
 PYNPUT_SHORTCUTS: dict[int, str] = {
@@ -57,6 +61,10 @@ PYNPUT_SHORTCUTS: dict[int, str] = {
     IP.CTRL_BIT | ord('j'): 'JoinSectionCommand',
     IP.CTRL_BIT | ord('x'): 'RemoveSectionCommand',
     IP.CTRL_BIT | ord('u'): 'UndoSectionCommand',
+    IP.KEY_HOME: 'JumpSectionStartCommand',
+    IP.KEY_END: 'JumpSectionEndCommand',
+    ord('v'): 'TogglePreviewCommand',
+    ord('V'): 'TogglePreviewCommand',
 }
 
 HYBRID_SHORTCUTS = PYNPUT_SHORTCUTS

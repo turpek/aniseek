@@ -155,6 +155,10 @@ class PlayerControl:
             logger.debug('setando o modo proceed')
             self.servant, self.master = self.master, self.servant
 
+    @property
+    def is_rewind(self) -> bool:
+        return isinstance(self.servant, VideoBufferLeft)
+
     def set_pause(self):
         logger.debug(f'setting the pause to {not self.__paused}')
         self.__paused = not self.__paused
@@ -326,7 +330,7 @@ class PlayerControl:
         self.__set_frame(frame_id)
         self.update_frame(frame_id, frame)
 
-    def set_buffers(self, servant: VideoBufferRight, master: VideoBufferLeft):
+    def set_buffers(self, servant: IVideoBuffer, master: IVideoBuffer):
         self.servant = servant
         self.master = master
         self.frame_id = None

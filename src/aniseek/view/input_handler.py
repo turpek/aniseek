@@ -115,6 +115,10 @@ class PynputKeyReader(InputHandler):
                 base_code = 8
             elif key == keyboard.Key.delete:
                 base_code = 127
+            elif key == keyboard.Key.home:
+                base_code = self.KEY_HOME
+            elif key == keyboard.Key.end:
+                base_code = self.KEY_END
 
         if base_code is not None:
             if ctrl:

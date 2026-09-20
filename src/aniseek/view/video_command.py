@@ -146,6 +146,30 @@ class JoinSectionCommand(Command):
         self.receiver.join_section()
 
 
+class JumpSectionStartCommand(Command):
+    def __init__(self, receiver: VideoController):
+        self.receiver = receiver
+
+    def executor(self) -> None:
+        self.receiver.jump_section_start()
+
+
+class JumpSectionEndCommand(Command):
+    def __init__(self, receiver: VideoController):
+        self.receiver = receiver
+
+    def executor(self) -> None:
+        self.receiver.jump_section_end()
+
+
+class TogglePreviewCommand(Command):
+    def __init__(self, receiver: VideoController):
+        self.receiver = receiver
+
+    def executor(self) -> None:
+        self.receiver.toggle_preview()
+
+
 class Invoker:
     def __init__(self):
         self.commands = {}

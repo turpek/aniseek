@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import bisect
 from collections import deque
 
 from loguru import logger
@@ -72,9 +71,17 @@ class VideoSection:
 
     def split(self, frame_id: int) -> tuple[VideoSection, VideoSection]:
         """Fatia a seção em duas diretamente em memória."""
+        if len(self._mapping) < 2:
+            raise SectionSplitProcessError(
+                f'Cannot split section with fewer than 2 frames (has {len(self._mapping)}).'
+            )
         if frame_id <= self._start or frame_id >= self._end:
             raise SectionSplitProcessError(
                 f'Cannot split at position "{frame_id}": outside section bounds ({self._start}..{self._end}).'
+            )
+        if frame_id <= self._mapping[0] or frame_id > self._mapping[-1]:
+            raise SectionSplitProcessError(
+                f'Cannot split at position "{frame_id}": would create an empty section.'
             )
         if frame_id not in self._mapping:
             raise SectionSplitProcessError(
@@ -84,10 +91,7 @@ class VideoSection:
         removed_1, removed_2 = partition_by_value(self._removed_frames, frame_id)
         black_1, black_2 = partition_by_value(self._black_list_frames, frame_id)
 
-        idx_end = bisect.bisect_left(self._mapping, frame_id) - 1
-        end_1 = self._mapping[idx_end]
-
-        section_1 = VideoSection(self._start, end_1, removed_1, black_1)
+        section_1 = VideoSection(self._start, frame_id, removed_1, black_1)
         section_2 = VideoSection(frame_id, self._end, removed_2, black_2)
         return section_1, section_2
 
@@ -168,6 +172,11 @@ class SectionManager:
         )
         self._removed_sections: list[list[VideoSection | None]] = []
         self._undo_stack: deque[dict] = deque()
+        self._undo_frame: int | None = None
+
+    @property
+    def undo_frame(self) -> int | None:
+        return self._undo_frame
 
     @property
     def sections(self) -> list[VideoSection]:
@@ -236,6 +245,26 @@ class SectionManager:
             preview.extend(sec.get_mapping())
         return preview
 
+    def index_of(self, frame_id: int) -> int | None:
+        """Retorna o índice da seção que contém o frame_id."""
+        for idx, sec in enumerate(self._sections):
+            if frame_id in sec.mapping:
+                return idx
+        return None
+
+    def goto_frame(self, frame_id: int, trash: Trash | None = None) -> bool:
+        """Posiciona o índice ativo na seção que contém o frame_id."""
+        idx = self.index_of(frame_id)
+        if idx is not None and idx != self._current_index:
+            if trash is not None:
+                self.store_mementos_frames(trash)
+            self._current_index = idx
+            if trash is not None:
+                trash.reset(None)
+                self.load_mementos_frames(trash)
+            return True
+        return False
+
     def update_mapping(self) -> None:
         if self._sections and 0 <= self._current_index < len(self._sections):
             self.current_section.mapping = self.current_section._calculate_mapping()
@@ -294,22 +323,24 @@ class SectionManager:
         frame_handler = FrameMementoHandler(trash_originator, trash_caretaker, trash)
         frame_handler.store_mementos(curr)
 
-    def split_section(self, frame_id: int, trash: Trash) -> bool:
+    def split_section(self, frame_id: int, trash: Trash, direction: int = 1) -> bool:
         if not self._sections:
             return False
         try:
             self.store_mementos_frames(trash)
             curr = self.current_section
             sec1, sec2 = curr.split(frame_id)
-        except Exception:
+        except Exception as e:
+            logger.warning(f"Could not split section at frame {frame_id}: {e}")
             self.load_mementos_frames(trash)
             return False
 
-        self._save_undo_state()
+        self._save_undo_state(frame_id=frame_id)
         self._removed_history.append([curr, None])
         self._sections[self._current_index] = sec1
         self._sections.insert(self._current_index + 1, sec2)
-        self._current_index += 1
+        if direction == 1:
+            self._current_index += 1
         return True
 
     def can_join_prev(self) -> bool:
@@ -318,7 +349,7 @@ class SectionManager:
     def can_join_next(self) -> bool:
         return self._current_index < len(self._sections) - 1
 
-    def join_section(self, trash: Trash, direction: int = -1) -> bool:
+    def join_section(self, trash: Trash, direction: int = -1, frame_id: int | None = None) -> bool:
         """Funde a seção atual com a vizinha (anterior se direction == -1, próxima se direction == 1)."""
         if direction == -1:
             if not self.can_join_prev():
@@ -332,7 +363,7 @@ class SectionManager:
             idx2 = self._current_index + 1
 
         self.store_mementos_frames(trash)
-        self._save_undo_state()
+        self._save_undo_state(frame_id=frame_id)
 
         sec1 = self._sections[idx1]
         sec2 = self._sections[idx2]
@@ -344,13 +375,13 @@ class SectionManager:
         self._current_index = idx1
         return True
 
-    def remove_section(self, trash: Trash) -> bool:
+    def remove_section(self, trash: Trash, frame_id: int | None = None) -> bool:
         if not self._sections:
             logger.debug('there are no more sections to remove')
             return False
 
         self.store_mementos_frames(trash)
-        self._save_undo_state()
+        self._save_undo_state(frame_id=frame_id)
 
         removed = self._sections.pop(self._current_index)
         self._removed_history.append([removed, None])
@@ -378,6 +409,7 @@ class SectionManager:
                 for s in state['sections']
             ]
             self._current_index = state['current_index']
+            self._undo_frame = state.get('frame_id')
             self._removed_history = [
                 [
                     VideoSection(
@@ -449,7 +481,7 @@ class SectionManager:
 
         return False
 
-    def _save_undo_state(self) -> None:
+    def _save_undo_state(self, frame_id: int | None = None) -> None:
         sections_copy = [
             VideoSection(
                 start=s.start,
@@ -478,4 +510,5 @@ class SectionManager:
             'sections': sections_copy,
             'current_index': self._current_index,
             'removed_history': removed_copy,
+            'frame_id': frame_id,
         })
