@@ -9,6 +9,7 @@ dependencies = [
     "numpy>=2.0.0",
     "opencv-python>=4.10.0",
     "pathlib3x>=2.0.3",
+    "pynput>=1.8.1",
 ]
 
 [build-system]
