@@ -6,9 +6,10 @@ from aniseek.core.buffer_left import VideoBufferLeft
 from aniseek.core.buffer_right import VideoBufferRight
 from aniseek.core.frame_mapper import FrameMapper
 from aniseek.core.interfaces.buffer import IVideoBuffer
-from aniseek.core.sources.opencv import OpenCVVideoSource
+from aniseek.core.interfaces.source import IFrameSource
+from aniseek.core.sources.registry import source_registry
 from aniseek.editing.player_control import PlayerControl
-from aniseek.editing.section import SectionManager
+from aniseek.editing.section import SectionManager, VideoSection
 from aniseek.editing.section_service import SectionService
 from aniseek.editing.trash import Trash
 from aniseek.editing.utils import VideoInfo
@@ -21,6 +22,7 @@ class VideoManager:
         self.__buffersize = buffersize
         self.mapping = None
         self.path = None
+        self.source = None
         self.trash = None
         self.frame_count = None
         self.semaphore = Semaphore()
@@ -47,8 +49,44 @@ class VideoManager:
 
     def load_capture(self, file_path: str | Path) -> None:
         self.path = Path(file_path)
-        self.source = OpenCVVideoSource(self.path)
+        self.source = source_registry.create_source(self.path)
         self.frame_count = self.source.frame_count
+
+    def load_source(self, source: IFrameSource) -> None:
+        if not isinstance(source, IFrameSource):
+            raise TypeError(
+                f"Expected source to be an instance of IFrameSource, got {type(source).__name__}"
+            )
+        self.source = source
+        self.path = None
+        self.frame_count = source.frame_count
+
+    def resolve_section_manager(
+        self,
+        sections: SectionManager | dict | Path | str | None = None,
+        label: str = 'video_01',
+        file_format: str = '.json',
+    ) -> SectionManager:
+        if isinstance(sections, SectionManager):
+            return sections
+        if isinstance(sections, dict):
+            if 'SECTIONS' in sections:
+                return SectionManager.from_dict(sections)
+            if label in sections:
+                return SectionManager.from_dict(sections[label])
+            for val in sections.values():
+                if isinstance(val, dict) and 'SECTIONS' in val:
+                    return SectionManager.from_dict(val)
+            return SectionManager.from_dict(sections)
+        if isinstance(sections, (str, Path)):
+            return SectionService.load_section_manager(Path(sections), label, self.frame_count)
+        if sections is None:
+            if self.path is not None:
+                file_data = self.path.with_suffix(file_format)
+                if file_data.exists():
+                    return SectionService.load_section_manager(file_data, label, self.frame_count)
+            return SectionManager([VideoSection(0, self.frame_count)])
+        raise TypeError(f"Unsupported type for sections: {type(sections).__name__}")
 
     def load_section_manager(self, file_path: Path, label: str, file_format: str):
         frame_count = self.frame_count
@@ -90,9 +128,35 @@ class VideoManager:
         self.load_mapping(map_frames)
         self.load_buffers()
 
-    def open(self, file_path: Path, label: str, file_format: str) -> SectionManager:
+    def open_source(
+        self,
+        source: IFrameSource,
+        sections: SectionManager | dict | Path | str | None = None,
+        label: str = 'video_01',
+        file_format: str = '.json',
+    ) -> SectionManager:
+        self.load_source(source)
+        section_manager = self.resolve_section_manager(sections, label, file_format)
+        self.__section_manager = section_manager
+        self.load_mapping(section_manager.get_mapping())
+        self.load_trash(section_manager)
+        self.load_buffers()
+
+        # Iniciando a task e esperando que a mesma esteja concluida.
+        self.servant.run()
+        self.servant._buffer.wait_task()
+        return section_manager
+
+    def open(
+        self,
+        file_path: Path,
+        label: str,
+        file_format: str,
+        sections: SectionManager | dict | Path | str | None = None,
+    ) -> SectionManager:
         self.load_capture(file_path)
-        section_manager = self.load_section_manager(file_path, label, file_format)
+        section_manager = self.resolve_section_manager(sections, label, file_format)
+        self.__section_manager = section_manager
         self.load_mapping(section_manager.get_mapping())
         self.load_trash(section_manager)
         self.load_buffers()

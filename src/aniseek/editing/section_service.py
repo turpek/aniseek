@@ -16,15 +16,17 @@ class SectionService:
         try:
             with open(file_path, 'r', encoding='utf-8') as f:
                 data = json.load(f)
-            return SectionManager.from_dict(data[label])
+            if label in data:
+                return SectionManager.from_dict(data[label])
+            elif 'SECTIONS' in data:
+                return SectionManager.from_dict(data)
+            for val in data.values():
+                if isinstance(val, dict) and 'SECTIONS' in val:
+                    return SectionManager.from_dict(val)
+            return SectionManager([VideoSection(0, frame_count)])
         except FileNotFoundError:
-            logger.info(f"Arquivo {file_path} não encontrado. Criando template inicial.")
-            secman = SectionManager([VideoSection(0, frame_count)])
-            template_data = {label: secman.to_dict()}
-            file_path.parent.mkdir(parents=True, exist_ok=True)
-            with open(file_path, 'w', encoding='utf-8') as f:
-                json.dump(template_data, f, indent=4)
-            return secman
+            logger.info(f"Arquivo {file_path} não encontrado. Criando template inicial em memória.")
+            return SectionManager([VideoSection(0, frame_count)])
 
     @staticmethod
     def save_section_manager(file_path: Path, label: str, data: dict) -> None:
