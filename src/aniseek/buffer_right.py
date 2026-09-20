@@ -22,8 +22,6 @@ módulo da opencv, a mesma tem a seguinte estrutura:
 import bisect
 from threading import Semaphore, Thread
 
-import cv2
-from cv2 import VideoCapture
 from loguru import logger
 from numpy import ndarray
 
@@ -31,6 +29,7 @@ from aniseek.buffer import BufferRight
 from aniseek.custom_exceptions import VideoBufferError
 from aniseek.frame_mapper import FrameMapper
 from aniseek.interfaces import IVideoBuffer
+from aniseek.interfaces.source import IFrameSource
 from aniseek.reader import reader
 
 
@@ -38,7 +37,7 @@ class VideoBufferRight(IVideoBuffer):
     """Classe que implementa o buffer dos frames a serem lidos"""
 
     def __init__(self,
-                 cap: VideoCapture,
+                 source: IFrameSource,
                  frame_mapping: FrameMapper,
                  semaphore: Semaphore, *,
                  buffersize=25,
@@ -48,8 +47,9 @@ class VideoBufferRight(IVideoBuffer):
 
         # Definições das variaveis que lidam com o Thread
         logger.debug('iniciando a classe')
-        self.cap = cap
-        self._frame_count = cap.get(cv2.CAP_PROP_FRAME_COUNT)
+        self.source = source
+        self.cap = source
+        self._frame_count = source.frame_count
         self.name = name
         self.buffersize = buffersize
         self._buffer = BufferRight(semaphore, maxsize=buffersize, log=bufferlog)
@@ -244,7 +244,7 @@ class VideoBufferRight(IVideoBuffer):
             logger.debug(f"start_frame set {start_frame}, end_frame set {end_frame}")
 
             mapping = self.__mapping.get_mapping()
-            values = (self.cap, start_frame, end_frame, mapping)
+            values = (self.source, start_frame, end_frame, mapping)
 
             # O método send deve ser usado somente em 2 casos:
             #   1o. Para enviar os dados para a thread
@@ -265,8 +265,8 @@ class VideoBufferRight(IVideoBuffer):
         self._buffer.end_task.set()
         self._buffer.send(False)
         self.thread.join()
-        if self.cap is not None:
-            self.cap.release()
+        if self.source is not None:
+            self.source.release()
 
     def join_like(self) -> None:
         """

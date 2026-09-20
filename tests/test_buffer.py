@@ -1,8 +1,10 @@
-from pytest import fixture
-from aniseek.buffer import FakeBuffer as Buffer
 from threading import Semaphore, Thread
 from time import sleep
+
 import numpy as np
+from pytest import fixture
+
+from aniseek.buffer import FakeBuffer as Buffer
 
 
 @fixture

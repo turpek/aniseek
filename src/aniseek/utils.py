@@ -4,7 +4,6 @@ from collections import deque
 from pathlib import Path
 from typing import TYPE_CHECKING
 
-import cv2
 from numpy import ndarray
 
 from aniseek.custom_exceptions import (
@@ -13,6 +12,7 @@ from aniseek.custom_exceptions import (
     SimpleStackError,
 )
 from aniseek.interfaces import IMementoHandler
+from aniseek.interfaces.source import IFrameSource
 from aniseek.memento import Caretaker
 
 if TYPE_CHECKING:
@@ -212,10 +212,10 @@ class VideoInfo:
     def format_file(self) -> str:
         return self.__format_file
 
-    def load_video_property(self, cap: cv2.VideoCapture) -> None:
+    def load_video_property(self, source: IFrameSource) -> None:
         if not self.frame_count:
-            self.__frame_count = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
-            self.__fps = cap.get(cv2.CAP_PROP_FPS)
+            self.__frame_count = source.frame_count
+            self.__fps = source.fps
 
 
 def partition_by_value(source: list, value_split) -> tuple[list, list]:

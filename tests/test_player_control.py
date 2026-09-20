@@ -1,25 +1,41 @@
-from aniseek.custom_exceptions import VideoBufferError
-from aniseek.player_control import PlayerControl
-from aniseek.buffer_left import VideoBufferLeft
-from aniseek.buffer_right import VideoBufferRight
-from aniseek.frame_mapper import FrameMapper
-from pytest import fixture
-from unittest.mock import patch
 from threading import Semaphore
+from unittest.mock import patch
+
 import cv2
 import numpy as np
 import pytest
+from pytest import fixture
+
+from aniseek.buffer_left import VideoBufferLeft
+from aniseek.buffer_right import VideoBufferRight
+from aniseek.frame_mapper import FrameMapper
+from aniseek.interfaces.source import IFrameSource
+from aniseek.player_control import PlayerControl
 
 
 def lote(start, end, step=1):
     return [(frame_id, np.ones((2, 2))) for frame_id in range(start, end, step)]
 
 
-class MyVideoCapture():
+class MyVideoCapture(IFrameSource):
     def __init__(self):
         self.frames = [np.zeros((2, 2)) for x in range(300)]
         self.index = 0
         self.isopened = True
+
+    @property
+    def frame_count(self) -> int:
+        return len(self.frames)
+
+    @property
+    def fps(self) -> float:
+        return 24.0
+
+    def seek(self, frame_id: int) -> None:
+        self.index = frame_id
+
+    def is_opened(self) -> bool:
+        return self.isopened
 
     def read(self):
 
@@ -34,6 +50,7 @@ class MyVideoCapture():
 
     def grab(self):
         self.index += 1
+        return True
 
     def set(self, flag, value):
         if cv2.CAP_PROP_POS_FRAMES == flag:
@@ -55,7 +72,7 @@ class MyVideoCapture():
         return self.isopened
 
     def release(self):
-        ...
+        self.isopened = False
 
 
 @fixture

@@ -1,7 +1,9 @@
-from pytest import fixture
-from aniseek.buffer import BufferLeft
 from threading import Semaphore
+
 import numpy as np
+from pytest import fixture
+
+from aniseek.buffer import BufferLeft
 
 
 @fixture
