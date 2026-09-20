@@ -87,19 +87,29 @@ O módulo `aniseek.editing` gerencia o ciclo de vida de edição de vídeos, fat
 
 ## 3. Camada `view` — Interface e Comandos
 
-O módulo `aniseek.view` contém o acoplamento com a interface gráfica do OpenCV e mapeamento de comandos de usuário.
+O módulo `aniseek.view` contém o acoplamento com a interface gráfica do OpenCV, o subsistema de captura de teclado e o mapeamento de comandos de usuário.
 
 ### Componentes Principais:
 
 1. **`VideoCon` (`aniseek.view.video`):**
    - Fachada de alto nível para exibição em janela nativa OpenCV (`namedWindow`, `imshow`).
    - Gerencia atalhos de teclado e loop de exibição.
+   - Utiliza flags de interface limpa (`cv2.WINDOW_NORMAL | cv2.WINDOW_GUI_NORMAL`).
 
-2. **`VideoController` (`aniseek.view.video_controller`):**
+2. **Subsistema de Entrada (`aniseek.view.input_handler` & `aniseek.view.interfaces.input`):**
+   - **`InputHandler`:** Interface abstrata que define o contrato de captura (`get_code(delay) -> int`, `join()`) e os bits de modificadores (`CTRL_BIT = 0x100`, `SHIFT_BIT = 0x200`, `ALT_BIT = 0x400`).
+   - **`PynputKeyReader` (Padrão):** Leitor baseado em hooks de teclado do sistema operacional via `pynput.keyboard.Listener`. Armazena eventos em fila thread-safe (`queue.Queue`), interceptando com precisão modificadores como `Ctrl`, `Shift` e `Alt`, além de manter o loop gráfico do OpenCV ativo via `cv2.waitKey()`.
+   - **`CV2KeyReader` (Fallback):** Leitor legado que delega diretamente para `cv2.waitKeyEx()`.
+
+3. **Mapeamento de Atalhos (`aniseek.view.shortcuts`):**
+   - **`PYNPUT_SHORTCUTS`:** Tabela padronizada com teclas simples para frames (`d`, `a`, `x`, `u`, etc.) e combinações de `Ctrl` para gerenciamento estrutural de seções (`Ctrl+d`, `Ctrl+a`, `Ctrl+s`, `Ctrl+j`, `Ctrl+x`, `Ctrl+u`).
+   - **`CV2_SHORTCUTS`:** Tabela alternativa para ambientes sem `pynput`, utilizando `Shift` ou caracteres maiúsculos.
+
+4. **`VideoController` (`aniseek.view.video_controller`):**
    - Conecta as ações da interface (`view`) ao `VideoManager` e à `Playlist`.
 
-3. **Padrão Command (`aniseek.view.video_command`):**
-   - `Invoker` e comandos concretos (`ProceedCommand`, `RewindCommand`, `PauseCommand`, `RemoveFrameCommand`, `UndoFrameCommand`, `SplitSectionCommand`, etc.).
+5. **Padrão Command (`aniseek.view.video_command`):**
+   - `Invoker` e comandos concretos (`ProceedCommand`, `RewindCommand`, `PauseCommand`, `RemoveFrameCommand`, `UndoFrameCommand`, `SplitSectionCommand`, `JoinSectionCommand`, etc.).
    - Permite disparar ações desacopladas a partir de eventos de teclado ou scripts.
 
 ---
