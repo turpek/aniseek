@@ -8,4 +8,4 @@ def test_package_version_defined():
     version = aniseek.__version__
 
     assert isinstance(version, str)
-    assert version == "0.1.0a1"
+    assert version == "0.1.0"
