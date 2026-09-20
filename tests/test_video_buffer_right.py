@@ -9,13 +9,11 @@ from pytest import fixture, raises
 from aniseek.core.buffer_right import VideoBufferRight
 from aniseek.core.frame_mapper import FrameMapper
 from aniseek.custom_exceptions import VideoBufferError
+from tests.uteis import MyVideoCapture
 
 
 def lote(start, end, step=1):
     return [(frame_id, np.ones((2, 2))) for frame_id in range(start, end, step)]
-
-
-from tests.uteis import MyVideoCapture
 
 
 @fixture

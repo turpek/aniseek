@@ -16,7 +16,7 @@ from aniseek.editing.interfaces.memento import IMementoHandler
 from aniseek.editing.memento import Caretaker
 
 if TYPE_CHECKING:
-    from aniseek.editing.memento import SectionOriginator, TrashOriginator
+    from aniseek.editing.memento import TrashOriginator
     from aniseek.editing.section import VideoSection
     from aniseek.editing.trash import Trash
 
@@ -71,21 +71,6 @@ class FrameMementoHandler(IMementoHandler):
             while len(removed_frames) > 0:
                 self.__originator.set_state(removed_frames.pop())
                 self.__caretaker.save(self.__originator)
-
-
-class SectionMementoHandler(IMementoHandler):
-    def __init__(self, originator: SectionOriginator, caretaker: Caretaker):
-        self.__caretaker = caretaker
-        self.__originator = originator
-
-    def store_mementos(self, removed_sections: SimpleStack):
-        while self.__caretaker.undo(self.__originator):
-            removed_sections.push(self.__originator.get_state())
-
-    def load_mementos(self, removed_sections: SimpleStack):
-        while not removed_sections.empty():
-            self.__originator.set_state(removed_sections.pop())
-            self.__caretaker.save(self.__originator)
 
 
 class FrameWrapper:
