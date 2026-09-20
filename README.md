@@ -1,116 +1,205 @@
 # aniseek
 
-**aniseek** é um motor inteligente para busca, navegação e leitura precisa frame a frame de vídeos, desenvolvido em Python. Diferente de um player convencional, o aniseek é focado na manipulação e extração temporal de frames, permitindo avanço e retrocesso instantâneos via buffers concorrentes.
+**aniseek** é um motor inteligente para busca, navegação e leitura precisa frame a frame de vídeos e sequências de imagens, desenvolvido em Python 3.12+. Focado na manipulação, fatiamento e extração temporal de frames, o aniseek oferece avanço e retrocesso instantâneos via buffers concorrentes em memória e um visualizador/editor desacoplado.
 
-Sua arquitetura é baseada em um sistema de duplo buffer (`VideoBufferLeft` e `VideoBufferRight`), que permite uma navegação eficiente tanto para frente (`proceed`) quanto para trás (`rewind`).
+Sua arquitetura é baseada em um sistema de duplo buffer concorrente (`VideoBufferLeft` e `VideoBufferRight`), que permite alternância de marcha temporal com latência zero e consumo cooperativo entre `proceed` (+1) e `rewind` (-1).
+
+---
 
 ## ✨ Funcionalidades Principais
 
-- **Navegação Frame a Frame:** Controle total sobre a reprodução, com a capacidade de avançar e retroceder quadro a quadro instantaneamente.
-- **Gerenciamento de Seções:** Divida o vídeo em múltiplas seções, permitindo operações como:
-  - **Dividir (`Split`):** Crie uma nova seção a partir do frame atual.
-  - **Juntar (`Join`):** Mescle a seção atual com a anterior.
-  - **Remover:** Exclua seções inteiras do vídeo.
-  - **Navegar entre seções:** Salte diretamente para o início ou fim de seções.
-- **Edição Não-Destrutiva:**
-  - **Remoção de Frames:** Marque frames para serem removidos sem excluí-los do arquivo original.
-  - **Lixeira (`Trash`):** Um sistema de lixeira que armazena os frames removidos e permite restaurá-los (`undo`).
-- **Controle de Velocidade:** Acelere ou desacelere a velocidade de reprodução em tempo real.
-- **Suporte a Playlist:** Carregue e navegue por uma lista sequencial de vídeos.
-- **Persistência de Edições:** Salva o estado das seções e frames removidos em um arquivo sidecar `.json` associado ao vídeo.
+- **Leitura Bidirecional Cooperativa (`VideoReader`):** Alternância instantânea de direção (`proceed` / `rewind`) com cache em memória entre buffers paralelos, eliminando redecodificação pesada.
+- **Leitores Unidirecionais Otimizados (`ForwardReader` e `ReverseReader`):** Leitura direta ou reversa com buffer único concorrente e baixo consumo de memória.
+- **Desacoplamento Total de Backend (`IFrameSource`):**
+  - [`OpenCVVideoSource`](docs/sources.md): Decodificação de arquivos de vídeo via OpenCV.
+  - [`ImageSource`](docs/sources.md): Leitura sequencial de diretórios de imagens (`.png`, `.jpg`, `.webp`, `.bmp`).
+  - [`SourceRegistry`](docs/sources.md): Singleton com context manager (`use()`) e construtor inteligente (`from_default`) para resolução automática de formato.
+- **Visualizador e Editor Interativo (`FrameViewer`):**
+  - Interface visual limpa via OpenCV GUI com suporte a atalhos de teclado de alto nível via `pynput`.
+  - Loop canônico não-bloqueante orientado a eventos (`while not viewer.quit():`).
+- **Gerenciamento de Seções e Edição Não-Destrutiva:**
+  - Divida (`Split`), junte (`Join`) e remova seções em tempo real.
+  - Lixeira (`Trash`) com histórico Memento para desfazer (`undo`) remoção de frames ou seções.
+  - Modo Preview (*Rough Cut*) para visualização contínua das seções ativas.
+- **Persistência Explícita:**
+  - Fim do salvamento forçado. Salve explicitamente via método `.save()` ou atalho de teclado (`Ctrl + w` / `Shift + w`).
+  - Suporte a injeção de seções em múltiplos formatos: `dict`, arquivo `.json` ou instância de `SectionManager`.
+- **Extensibilidade com Padrão Command:**
+  - Vincule comandos personalizados com tipagem estrita via `viewer.bind(key, command)`.
+  - Agrupe e execute múltiplos comandos em sequência com `MacroCommand`.
+
+---
 
 ## 🛠️ Tecnologias Utilizadas
 
 - [Python 3.12+](https://www.python.org/)
-- [OpenCV (`opencv-python`)](https://pypi.org/project/opencv-python/): Para decodificação e exibição dos frames de vídeo.
-- [pynput](https://pypi.org/project/pynput/): Para captura precisa de modificadores de teclado (`Ctrl`, `Shift`, `Alt`) via hooks do SO.
-- [NumPy](https://numpy.org/): Para manipulação de arrays de frames.
-- [Loguru](https://github.com/Delgan/loguru): Para logging estruturado.
-- [uv](https://github.com/astral-sh/uv): Gerenciamento moderno de pacotes e ambientes Python.
+- [OpenCV (`opencv-python`)](https://pypi.org/project/opencv-python/): Decodificação e exibição nativa de frames.
+- [pynput](https://pypi.org/project/pynput/): Captura precisa de modificadores de teclado (`Ctrl`, `Shift`, `Alt`) em nível de sistema operacional.
+- [NumPy](https://numpy.org/): Manipulação eficiente de arrays de frames.
+- [Loguru](https://github.com/Delgan/loguru): Logging estruturado.
+- [uv](https://github.com/astral-sh/uv): Gerenciamento moderno de pacotes e ambientes virtuais.
 
-## 🚀 Instalação e Execução
+---
 
-**1. Clone o repositório:** 
+## 🚀 Instalação
 
 ```bash
+# Clone o repositório:
 git clone https://github.com/turpek/aniseek.git
 cd aniseek
-```
 
-**2. Instale as dependências via `uv` (recomendado):**
-
-```bash
+# Instale as dependências via uv (recomendado):
 uv sync
 ```
 
-*Ou utilizando pip convencional:*
-
+*Ou via pip convencional:*
 ```bash
 python -m venv .venv
 source .venv/bin/activate  # No Windows: .venv\Scripts\activate
 pip install -e .
 ```
 
-**3. Exemplo de uso básico:**
+---
+
+## 📖 Exemplos de Uso
+
+### 1. Leitura de Vídeo com `VideoReader`
 
 ```python
-from aniseek.editing.playlist import Playlist
-from aniseek.view import VideoCon
+from aniseek import VideoReader
 
-if __name__ == '__main__':
-    video_path = "caminho/para/seu/video.mp4"
-    playlist = Playlist([video_path])
+# Construtor inteligente: detecta vídeo ou diretório de imagens automaticamente
+with VideoReader.from_default("video.mp4") as reader:
+    # Avanço normal (+1)
+    frame_id, frame = reader.proceed()
+    print(f"Frame lido: {frame_id}")
 
-    with VideoCon(playlist) as video:
-        while not video.quit():
-            ret, frame = video.read()
-            video.show(ret, frame)
+    # Retrocesso instantâneo (-1) com cache em memória
+    frame_id, frame = reader.rewind()
+    print(f"Frame lido: {frame_id}")
 ```
 
-Execute o script com:
+### 2. Leitura com Injeção de Backend Explícito
 
-```bash
-uv run python main.py
+```python
+from aniseek import ForwardReader
+from aniseek.core.sources import OpenCVVideoSource, ImageSource
+
+# Injeção de backend de vídeo:
+source = OpenCVVideoSource("video.mp4")
+with ForwardReader(source, start="01:00", end="01:30", step=2) as reader:
+    for ret, frame in reader:
+        if not ret:
+            continue
+        # Processar frame
+
+# Injeção de backend de pasta de imagens:
+img_source = ImageSource("frames_dir/", fps=24.0)
+with ForwardReader(img_source) as reader:
+    for ret, frame in reader:
+        if not ret:
+            continue
+        # Processar imagem
 ```
 
-## ⌨️ Comandos e Atalhos
+### 3. Visualizador e Editor (`FrameViewer`)
 
-O sistema de atalhos adota uma separação categórica entre operações de **Frames/Reprodução** (teclas soltas) e operações de **Seções** (com tecla modificadora `Ctrl` via `pynput` por padrão, ou `Shift`/Maiúsculas no fallback OpenCV):
+O loop canônico e idiomático do `FrameViewer` é governado por `while not viewer.quit():`:
 
-### 1. Reprodução e Controle de Frames (Sem modificador)
+```python
+from aniseek.view import FrameViewer
 
-| Tecla | Ação | Descrição |
-| :---: | :--- | :--- |
-| **`d`** | **Proceed** | Avança frame a frame em direção normal (+1). |
-| **`a`** | **Rewind** | Recua frame a frame em direção reversa (-1). |
-| **`espaço`** | **Pause/Play (Delay)** | Pausa ativa para edição (delay=0) ou retoma à velocidade atual. |
-| **`b`** | **Pause/Play (Toggle)** | Pausa ou retoma a reprodução contínua. |
-| **`x`** | **Remover Frame** | Remove o frame atual e envia para a lixeira (`Trash`). |
-| **`u`** | **Desfazer Frame** | Restaura o último frame removido da lixeira. |
-| **`[`** | **Diminuir Velocidade** | Aumenta o delay entre frames exibidos. |
-| **`]`** | **Aumentar Velocidade** | Diminui o delay entre frames exibidos. |
-| **`=`** | **Restaurar Velocidade** | Restaura a velocidade padrão de reprodução. |
-| **`n`** | **Próximo Vídeo** | Avança para o próximo vídeo da playlist. |
-| **`p`** | **Vídeo Anterior** | Retorna para o vídeo anterior da playlist. |
-| **`q`** | **Sair** | Encerra o player e persiste as seções no arquivo `.json`. |
+with FrameViewer.from_default("video.mp4") as viewer:
+    while not viewer.quit():
+        ret, frame = viewer.read()
+        viewer.show(ret, frame)
+```
 
-### 2. Gerenciamento de Seções (Com Modificador)
+### 4. Injeção de Seções e Salvamento Explícito
 
-| Operação | Padrão (`pynput`) | Fallback (`cv2`) | Descrição |
-| :--- | :---: | :---: | :--- |
-| **Próxima Seção** | **`Ctrl + d`** | `Shift + d` / `D` | Salta para a próxima seção do vídeo. |
-| **Seção Anterior** | **`Ctrl + a`** | `Shift + a` / `A` | Salta para a seção anterior do vídeo. |
-| **Dividir Seção** | **`Ctrl + s`** | `Shift + s` / `S` | Divide a seção no frame atual (**S**plit). |
-| **Juntar Seção** | **`Ctrl + j`** | `Shift + j` / `J` | Une a seção atual com a anterior (**J**oin). |
-| **Remover Seção** | **`Ctrl + x`** | `Shift + x` / `X` | Remove a seção inteira atual. |
-| **Desfazer Seção** | **`Ctrl + u`** | `Shift + u` / `U` | Desfaz a última alteração de seção (**U**ndo). |
+```python
+from aniseek.view import FrameViewer
+
+# Injeção via dicionário em memória:
+sections_data = {
+    "SECTIONS": [
+        {"RANGE_FRAME_ID": (0, 100), "REMOVED_FRAMES": [], "BLACK_LIST": []},
+        {"RANGE_FRAME_ID": (200, 300), "REMOVED_FRAMES": [], "BLACK_LIST": []},
+    ],
+    "REMOVED": [],
+}
+
+with FrameViewer.from_default("video.mp4", sections=sections_data) as viewer:
+    # Salvar manualmente a qualquer momento:
+    viewer.save("meu_corte.json")
+
+    while not viewer.quit():
+        ret, frame = viewer.read()
+        viewer.show(ret, frame)
+```
+
+### 5. Comandos Personalizados e `MacroCommand`
+
+```python
+from aniseek.view import FrameViewer
+from aniseek.view.interfaces.command import Command
+from aniseek.view.video_command import MacroCommand, PauseCommand, SaveCommand
+
+class NotificarCommand(Command):
+    def executor(self) -> None:
+        print("Ação personalizada executada!")
+
+with FrameViewer.from_default("video.mp4") as viewer:
+    ctrl = viewer._FrameViewer__video_controller
+
+    # Agrupar múltiplos comandos em uma macro ordenada:
+    macro = MacroCommand([
+        PauseCommand(ctrl),
+        SaveCommand(ctrl),
+        NotificarCommand(),
+    ])
+
+    # Vincular à tecla 'z' (estritamente instâncias de Command):
+    viewer.bind(ord("z"), macro)
+
+    while not viewer.quit():
+        ret, frame = viewer.read()
+        viewer.show(ret, frame)
+```
 
 ---
 
-## 💡 Conceitos Fundamentais
+## ⌨️ Comandos e Atalhos do `FrameViewer`
 
-- **`VideoReader` / Duplo Buffer:** Leitores paralelos concorrentes (`VideoBufferRight` e `VideoBufferLeft`) operando cooperativamente em memória (`servant` e `master`), garantindo troca de sentido instantânea sem lag de decodificação.
-- **`FrameMapper`:** Estrutura otimizada em C (`array('l')`) que indexa os IDs válidos de frames com busca binária rápida (`bisect`) e alterna dinamicamente entre decodificação pesada (`read()`) e pulo leve de cabeçalho (`grab()`).
-- **`SectionManager`:** Gerencia o ciclo de vida das seções temporais do vídeo e sua persistência automática em disco.
-- **`Trash` & Memento:** Padrão arquitetural que preserva o histórico de edições e descartes para restauração a qualquer momento.
-- **`InputHandler` / `PynputKeyReader`:** Motor desacoplado de leitura de teclado com suporte a modificadores em nível de sistema operacional, eliminando limitações de backends gráficos.
+| Tecla | Modificador | Ação | Descrição |
+| :---: | :---: | :--- | :--- |
+| **`d`** | — | **Proceed** | Avança frame a frame (+1). |
+| **`a`** | — | **Rewind** | Retrocede frame a frame (-1). |
+| **`espaço`** | — | **Pause/Play (Delay)** | Pausa ativa para edição (delay=0) ou retoma reprodução. |
+| **`b`** | — | **Pause/Play (Toggle)** | Alterna pausa e reprodução contínua. |
+| **`x`** | — | **Remover Frame** | Remove o frame atual e envia para a lixeira (`Trash`). |
+| **`u`** | — | **Desfazer Frame** | Restaura o último frame da lixeira. |
+| **`[`** / **`]`** | — | **Velocidade** | Diminui / Aumenta a velocidade de reprodução. |
+| **`=`** | — | **Restaurar Velocidade**| Restaura o delay padrão de reprodução. |
+| **`w`** | `Ctrl` / `Shift` | **Salvar** | Persiste o estado das seções explicitamente no arquivo `.json`. |
+| **`d`** | `Ctrl` / `Shift` | **Próxima Seção** | Salta para o início da próxima seção. |
+| **`a`** | `Ctrl` / `Shift` | **Seção Anterior** | Salta para o fim da seção anterior. |
+| **`s`** | `Ctrl` / `Shift` | **Dividir Seção** | Divide a seção atual no frame corrente (**S**plit). |
+| **`j`** | `Ctrl` / `Shift` | **Juntar Seção** | Mescla a seção atual com a adjacente (**J**oin). |
+| **`x`** | `Ctrl` / `Shift` | **Remover Seção** | Remove a seção inteira atual. |
+| **`u`** | `Ctrl` / `Shift` | **Desfazer Seção** | Restaura a última seção removida ou dividida (**U**ndo). |
+| **`Home`** / **`End`** | — | **Início / Fim** | Salta para o primeiro ou último frame da seção atual. |
+| **`v`** | — | **Toggle Preview** | Alterna entre o modo de edição e o modo preview (*Rough Cut*). |
+| **`n`** / **`p`** | — | **Playlist** | Avança para o próximo vídeo ou volta ao anterior. |
+| **`q`** | — | **Sair** | Encerra o visualizador de forma limpa. |
+
+---
+
+## 📚 Documentação Completa
+
+Para aprofundar-se na arquitetura e nas APIs detalhadas:
+
+- 🏛️ [**Arquitetura do Sistema (`docs/architecture.md`)**](docs/architecture.md): Visão detalhada das camadas `core`, `editing` e `view`, sistema servant/master e threading.
+- 📖 [**Leitores de Vídeo (`docs/readers.md`)**](docs/readers.md): Guia completo de `BaseVideoReader`, `ForwardReader`, `ReverseReader` e `VideoReader`.
+- 🖼️ [**Visualizador e Edição (`docs/viewer.md`)**](docs/viewer.md): Guia do `FrameViewer`, customização de atalhos, comandos e `MacroCommand`.
+- 🔌 [**Fontes e Backends (`docs/sources.md`)**](docs/sources.md): Detalhes de `IFrameSource`, `OpenCVVideoSource`, `ImageSource` e `SourceRegistry`.
