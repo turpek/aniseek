@@ -1,22 +1,23 @@
 from __future__ import annotations
 
 from abc import ABC, abstractmethod
-from enum import StrEnum
+from enum import Enum
 from pathlib import Path
 from threading import Semaphore
-from typing import Iterator
+from typing import Iterator, Self
 
 from numpy import ndarray
 
 from aniseek.core.buffer_left import VideoBufferLeft
 from aniseek.core.buffer_right import VideoBufferRight
 from aniseek.core.frame_mapper import FrameMapper
-from aniseek.core.sources.opencv import OpenCVVideoSource
+from aniseek.core.interfaces.source import IFrameSource
+from aniseek.core.sources.registry import source_registry
 from aniseek.time_utils import resolve_frame_range
 
 
-class Direction(StrEnum):
-    """Sentido de reprodução e amostragem de frames."""
+class Direction(str, Enum):
+    """Direção inicial de leitura do vídeo."""
 
     FORWARD = "forward"
     REVERSE = "reverse"
@@ -27,7 +28,7 @@ class BaseVideoReader(ABC):
 
     def __init__(
         self,
-        video: str | Path,
+        source: IFrameSource,
         *,
         start: int | float | str | None = None,
         end: int | float | str | None = None,
@@ -35,7 +36,9 @@ class BaseVideoReader(ABC):
         frames: list[int] | None = None,
         buffersize: int = 30,
     ) -> None:
-        self.source = OpenCVVideoSource(video)
+        if not isinstance(source, IFrameSource):
+            raise TypeError("source must be an instance of IFrameSource")
+        self.source = source
         self.total_frames = self.source.frame_count
         self.fps = self.source.fps
 
@@ -96,13 +99,36 @@ class BaseVideoReader(ABC):
     def __exit__(self, exc_type, exc_val, exc_tb) -> None:
         self.close()
 
+    @classmethod
+    def from_default(
+        cls,
+        path: str | Path,
+        *,
+        start: int | float | str | None = None,
+        end: int | float | str | None = None,
+        step: int = 1,
+        frames: list[int] | None = None,
+        buffersize: int = 30,
+        **source_kwargs,
+    ) -> Self:
+        """Create a reader using the default IFrameSource resolved by SourceRegistry."""
+        source = source_registry.create_source(path, **source_kwargs)
+        return cls(
+            source,
+            start=start,
+            end=end,
+            step=step,
+            frames=frames,
+            buffersize=buffersize,
+        )
+
 
 class ForwardReader(BaseVideoReader):
     """Leitor unidirecional de alto desempenho focado exclusivamente em avanço (+1)."""
 
     def __init__(
         self,
-        video: str | Path,
+        source: IFrameSource,
         *,
         start: int | float | str | None = None,
         end: int | float | str | None = None,
@@ -111,7 +137,7 @@ class ForwardReader(BaseVideoReader):
         buffersize: int = 30,
     ) -> None:
         super().__init__(
-            video,
+            source,
             start=start,
             end=end,
             step=step,
@@ -157,7 +183,7 @@ class ReverseReader(BaseVideoReader):
 
     def __init__(
         self,
-        video: str | Path,
+        source: IFrameSource,
         *,
         start: int | float | str | None = None,
         end: int | float | str | None = None,
@@ -166,7 +192,7 @@ class ReverseReader(BaseVideoReader):
         buffersize: int = 30,
     ) -> None:
         super().__init__(
-            video,
+            source,
             start=start,
             end=end,
             step=step,
@@ -213,7 +239,7 @@ class VideoReader(BaseVideoReader):
 
     def __init__(
         self,
-        video: str | Path,
+        source: IFrameSource,
         *,
         start: int | float | str | None = None,
         end: int | float | str | None = None,
@@ -223,7 +249,7 @@ class VideoReader(BaseVideoReader):
         buffersize: int = 30,
     ) -> None:
         super().__init__(
-            video,
+            source,
             start=start,
             end=end,
             step=step,
@@ -256,6 +282,31 @@ class VideoReader(BaseVideoReader):
         if len(self.frame_ids) > 0:
             self.servant.run()
             self.servant._buffer.wait_task()
+
+    @classmethod
+    def from_default(
+        cls,
+        path: str | Path,
+        *,
+        start: int | float | str | None = None,
+        end: int | float | str | None = None,
+        step: int = 1,
+        frames: list[int] | None = None,
+        direction: Direction | str = Direction.FORWARD,
+        buffersize: int = 30,
+        **source_kwargs,
+    ) -> Self:
+        """Create a VideoReader using the default IFrameSource resolved by SourceRegistry."""
+        source = source_registry.create_source(path, **source_kwargs)
+        return cls(
+            source,
+            start=start,
+            end=end,
+            step=step,
+            frames=frames,
+            direction=direction,
+            buffersize=buffersize,
+        )
 
     @property
     def is_task_complete(self) -> bool:
