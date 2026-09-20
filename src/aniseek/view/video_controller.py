@@ -1,7 +1,14 @@
+from __future__ import annotations
+
+from pathlib import Path
+
 from loguru import logger
 
+from aniseek.core.interfaces.source import IFrameSource
 from aniseek.editing.manager import VideoManager
 from aniseek.editing.playlist import Playlist
+from aniseek.editing.section import SectionManager
+from aniseek.editing.utils import VideoInfo
 
 fake = {
     'SECTIONS':
@@ -14,11 +21,13 @@ fake = {
 
 class VideoController:
     def __init__(self,
-                 playlist: Playlist,
-                 frames_mapping: list[int],
-                 video_manager: VideoManager):
+                 playlist: Playlist | None = None,
+                 frames_mapping: list[int] | None = None,
+                 video_manager: VideoManager | None = None,
+                 *,
+                 sections: SectionManager | dict | Path | str | None = None):
 
-        # Abrindo o vídeo e atualizando informaçẽos do vídeo
+        # Abrindo o vídeo e atualizando informações do vídeo
         self.__player = None
         self.__mapper = None
         self.__trash = None
@@ -26,18 +35,66 @@ class VideoController:
         self.__playlist = playlist
         self.__is_preview = False
         self.__last_frame_id: int | None = None
+        self.__injected_sections = sections
 
-        video_info = playlist.get_video_info()
-        self.__open_video(video_manager, video_info)
+        if video_manager is None:
+            video_manager = VideoManager(60, False)
         self.video_manager = video_manager
+
+        if playlist is not None:
+            video_info = playlist.get_video_info()
+            if video_info is not None:
+                self.__open_video(video_manager, video_info, sections=sections)
+
+    @classmethod
+    def from_source(
+        cls,
+        source: IFrameSource,
+        video_manager: VideoManager | None = None,
+        *,
+        sections: SectionManager | dict | Path | str | None = None,
+    ) -> VideoController:
+        if not isinstance(source, IFrameSource):
+            raise TypeError(
+                f"Expected source to be an instance of IFrameSource, got {type(source).__name__}"
+            )
+        if video_manager is None:
+            video_manager = VideoManager(60, False)
+
+        ctrl = cls.__new__(cls)
+        ctrl.__player = None
+        ctrl.__mapper = None
+        ctrl.__trash = None
+        ctrl.__section_manager = None
+        ctrl.__playlist = None
+        ctrl.__is_preview = False
+        ctrl.__last_frame_id = None
+        ctrl.__injected_sections = sections
+        ctrl.video_manager = video_manager
+
+        section_manager = video_manager.open_source(source, sections=sections)
+        player, mapper, trash = video_manager.get()
+        ctrl.__player = player
+        ctrl.__mapper = mapper
+        ctrl.__trash = trash
+        ctrl.__section_manager = section_manager
+        return ctrl
 
     @property
     def is_preview(self) -> bool:
         return self.__is_preview
 
-    def __open_video(self, video_manager: VideoManager, vinfo) -> None:
-        """Método para abrir o vídeo e cofigurar a seção."""
-        section_manager = video_manager.open(vinfo.path, vinfo.label, vinfo.format_file)
+    def __open_video(
+        self,
+        video_manager: VideoManager,
+        vinfo: VideoInfo,
+        sections: SectionManager | dict | Path | str | None = None,
+    ) -> None:
+        """Método para abrir o vídeo e configurar a seção."""
+        target_sections = sections if sections is not None else self.__injected_sections
+        section_manager = video_manager.open(
+            vinfo.path, vinfo.label, vinfo.format_file, sections=target_sections
+        )
         video_manager.load_video_info(vinfo)
         player, mapper, trash = video_manager.get()
         self.__player = player
@@ -45,12 +102,31 @@ class VideoController:
         self.__trash = trash
         self.__section_manager = section_manager
 
+    def save(self, file_path: Path | str | None = None) -> None:
+        """Salva o estado das seções explicitamente."""
+        if self.__section_manager is None:
+            logger.warning("save: SectionManager não inicializado.")
+            return
+
+        if file_path is not None:
+            target_path = Path(file_path)
+            label = self.__playlist.get_video_info().label if self.__playlist is not None else 'video_01'
+        elif self.__playlist is not None:
+            video_info = self.__playlist.get_video_info()
+            label = video_info.label
+            target_path = video_info.path.with_suffix(video_info.format_file)
+        elif self.video_manager.path is not None:
+            label = 'video_01'
+            target_path = self.video_manager.path.with_suffix('.json')
+        else:
+            label = 'video_01'
+            target_path = Path('sections.json')
+
+        self.video_manager.save_section(self.__section_manager, target_path, label)
+        logger.info(f"Seções salvas com sucesso em {target_path} [{label}]")
+
     def __save_section_manager(self):
-        video_info = self.__playlist.get_video_info()
-        label = video_info.label
-        format_file = video_info.format_file
-        file_path = video_info.path.with_suffix(format_file)
-        self.video_manager.save_section(self.__section_manager, file_path, label)
+        self.save()
 
     def set_pause(self):
         self.__player.set_pause()
@@ -64,7 +140,6 @@ class VideoController:
         self.__player.set_read()
 
     def set_quit(self):
-        self.__save_section_manager()
         self.__player.set_quit()
 
     def increase_speed(self):
@@ -115,8 +190,7 @@ class VideoController:
 
     def next_video(self):
         playlist = self.__playlist
-        if not playlist.is_end():
-            self.__save_section_manager()
+        if playlist and not playlist.is_end():
             self.__player.join()
             playlist.next_video()
             self.__open_video(self.video_manager, playlist.get_video_info())
@@ -126,8 +200,7 @@ class VideoController:
 
     def prev_video(self):
         playlist = self.__playlist
-        if not playlist.is_beginning():
-            self.__save_section_manager()
+        if playlist and not playlist.is_beginning():
             self.__player.join()
             playlist.prev_video()
             self.__open_video(self.video_manager, playlist.get_video_info())

@@ -170,6 +170,33 @@ class TogglePreviewCommand(Command):
         self.receiver.toggle_preview()
 
 
+class SaveCommand(Command):
+    def __init__(self, receiver: VideoController):
+        self.receiver = receiver
+
+    def executor(self) -> None:
+        self.receiver.save()
+
+
+class MacroCommand(Command):
+    def __init__(self, commands: list[Command] | tuple[Command, ...] | None = None):
+        self._commands: list[Command] = []
+        if commands is not None:
+            for cmd in commands:
+                self.add(cmd)
+
+    def add(self, command: Command) -> None:
+        if not isinstance(command, Command):
+            raise TypeError(
+                f"Expected command to be an instance of Command, got {type(command).__name__}"
+            )
+        self._commands.append(command)
+
+    def executor(self) -> None:
+        for command in self._commands:
+            command.executor()
+
+
 class Invoker:
     def __init__(self):
         self.commands = {}

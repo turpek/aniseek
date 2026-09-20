@@ -69,12 +69,8 @@ class Playlist:
 
     def next_video(self) -> None:
         """
-        Passa para o próximo vídeo da lista de reprodução, para isso passa o nome do
-        arquivo para o método open do ´VideoCon´, caso a lista de reprodução seja vazia,
+        Passa para o próximo vídeo da lista de reprodução, caso a lista de reprodução seja vazia,
         o nome será None
-
-        Args:
-            video_player (VideoCon): objeto responsavel pela reprodução do vídeo.
 
         Returns:
             None
@@ -83,12 +79,8 @@ class Playlist:
 
     def prev_video(self) -> None:
         """
-        Passa para o vídeo anterior da lista de reprodução, para isso passa o nome do
-        arquivo para o método open do ´VideoCon´, caso a lista de reprodução seja vazia,
+        Passa para o vídeo anterior da lista de reprodução, caso a lista de reprodução seja vazia,
         o nome será None
-
-        Args:
-            video_player (VideoCon): objeto responsavel pela reprodução do vídeo.
 
         Returns:
             None

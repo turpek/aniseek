@@ -1,12 +1,17 @@
+from __future__ import annotations
+
+from pathlib import Path
 from time import sleep
 
 import cv2
 from loguru import logger
 
+from aniseek.core.interfaces.source import IFrameSource
+from aniseek.core.sources.registry import source_registry
 from aniseek.editing.manager import VideoManager
-from aniseek.editing.playlist import Playlist
 from aniseek.editing.section import SectionManager
 from aniseek.view.input_handler import PynputKeyReader
+from aniseek.view.interfaces.command import Command
 from aniseek.view.interfaces.input import InputHandler
 from aniseek.view.shortcuts import PYNPUT_SHORTCUTS, SHORTCUTS
 from aniseek.view.video_command import (
@@ -28,6 +33,7 @@ from aniseek.view.video_command import (
     RemoveSectionCommand,
     RestoreDelayCommand,
     RewindCommand,
+    SaveCommand,
     SplitSectionCommand,
     TogglePreviewCommand,
     UndoFrameCommand,
@@ -36,33 +42,82 @@ from aniseek.view.video_command import (
 from aniseek.view.video_controller import VideoController
 
 
-class VideoCon:
+class FrameViewer:
     def __init__(
             self,
-            video: str | Playlist, *,
-            frames_mapping: list[int] = None,
-            section: SectionManager = None,
+            source: IFrameSource, *,
+            sections: SectionManager | dict | Path | str | None = None,
+            shortcuts: dict[int, str] | None = None,
             buffersize: int = 60,
             key_reader: type[InputHandler] = PynputKeyReader,
             log: bool = False
     ):
+        if not isinstance(source, IFrameSource):
+            raise TypeError(
+                f"Expected source to be an instance of IFrameSource, got {type(source).__name__}. "
+                "Use FrameViewer.from_default(path) if passing a file path or directory."
+            )
 
-        self.__playlist = video if isinstance(video, Playlist) else Playlist([video])
+        self.__source = source
         self.__log = log
         self.__buffersize = buffersize
         self.__creating_window()
         self.__key_reader = key_reader()
         kr = type(self.__key_reader)
-        self.__shortcuts = SHORTCUTS.get(kr, PYNPUT_SHORTCUTS)
+        base_shortcuts = SHORTCUTS.get(kr, PYNPUT_SHORTCUTS)
+        self.__shortcuts = dict(base_shortcuts)
+        if shortcuts is not None:
+            self.__shortcuts.update(shortcuts)
 
         self.__last_title: str | None = None
         self.__video_manager = VideoManager(buffersize, log)
-        self.__video_controller = VideoController(self.__playlist,
-                                                  frames_mapping,
-                                                  self.__video_manager)
+        self.__video_controller = VideoController.from_source(
+            source=source,
+            video_manager=self.__video_manager,
+            sections=sections,
+        )
 
         self.command = Invoker()
         self.set_commands(self.__video_controller)
+
+    @classmethod
+    def from_default(
+        cls,
+        path: str | Path,
+        *,
+        sections: SectionManager | dict | Path | str | None = None,
+        shortcuts: dict[int, str] | None = None,
+        buffersize: int = 60,
+        key_reader: type[InputHandler] = PynputKeyReader,
+        log: bool = False,
+    ) -> FrameViewer:
+        if isinstance(path, IFrameSource):
+            raise TypeError(
+                "from_default() expects a file path (str or Path), not an IFrameSource instance. "
+                "Use FrameViewer(source) directly."
+            )
+        source = source_registry.create_source(path)
+        return cls(
+            source,
+            sections=sections,
+            shortcuts=shortcuts,
+            buffersize=buffersize,
+            key_reader=key_reader,
+            log=log,
+        )
+
+    def bind(self, key: int, command: Command) -> None:
+        """Associa uma tecla diretamente a uma instância de Command."""
+        if not isinstance(command, Command):
+            raise TypeError(
+                f"Expected command to be an instance of Command, got {type(command).__name__}"
+            )
+        self.__shortcuts[key] = key
+        self.command.set_command(key, command)
+
+    def save(self, file_path: Path | str | None = None) -> None:
+        """Salva o estado das seções explicitamente."""
+        self.__video_controller.save(file_path)
 
     def __enter__(self):
         return self
@@ -160,6 +215,7 @@ class VideoCon:
         command.set_command('JumpSectionStartCommand', JumpSectionStartCommand(video_controller))
         command.set_command('JumpSectionEndCommand', JumpSectionEndCommand(video_controller))
         command.set_command('TogglePreviewCommand', TogglePreviewCommand(video_controller))
+        command.set_command('SaveCommand', SaveCommand(video_controller))
 
     def control(self, key):
         shortcut_key = self.__shortcuts.get(key, key)
