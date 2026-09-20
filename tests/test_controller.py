@@ -1,18 +1,25 @@
-from aniseek.custom_exceptions import VideoBufferError
-from aniseek.video_command import (RewindCommand,
-                               ProceesCommand,
-                               RemoveFrameCommand,
-                               UndoFrameCommand)
-from aniseek.video_controller import FakeVideoController as VideoController
-from aniseek.manager import VideoManager
+from threading import Semaphore
+from unittest.mock import patch
+
+import numpy as np
+import pytest
+from pytest import fixture
+
 from aniseek.buffer_left import VideoBufferLeft
 from aniseek.buffer_right import VideoBufferRight
+from aniseek.frame_mapper import FrameMapper
+from aniseek.manager import VideoManager
+from aniseek.player_control import PlayerControl
 from aniseek.playlist import Playlist
-from pytest import fixture
-from unittest.mock import patch, MagicMock
-import numpy as np
-import cv2
-import pytest
+from aniseek.trash import Trash
+from aniseek.video_command import (
+    ProceesCommand,
+    RemoveFrameCommand,
+    RewindCommand,
+    UndoFrameCommand,
+)
+from aniseek.video_controller import FakeVideoController as VideoController
+from tests.uteis import MyVideoCapture
 
 
 def lote(start, end, step=1):
@@ -25,47 +32,11 @@ def mycap():
         yield mock
 
 
-class MyVideoCapture():
-    def __init__(self):
-        self.frames = [np.zeros((2, 2)) for x in range(500)]
-        self.index = 0
-        self.isopened = True
-
-    def read(self):
-        if self.index < len(self.frames):
-            frame = self.frames[self.index]
-            self.index += 1
-            return True, frame
-        return False, None
-
-    def set(self, flag, value):
-        if cv2.CAP_PROP_POS_FRAMES == flag:
-            if len(self.frames) >= value and value >= 0:
-                self.index = value
-                return True
-            else:
-                return False
-        return False
-
-    def get(self, flag):
-        if cv2.CAP_PROP_FRAME_COUNT == flag:
-            return len(self.frames)
-        elif cv2.CAP_PROP_POS_FRAMES == flag:
-            return self.index
-        return False
-
-    def isOpened(self):
-        return self.isopened
-
-    def release(self):
-        ...
-
-
 @fixture
 def video(mycap, request):
     frames_mapping, buffersize, frame_count, log = request.param
     log = False
-    with patch('aniseek.manager.cv2.VideoCapture', return_value=MyVideoCapture()) as _:
+    with patch('aniseek.sources.opencv.cv2.VideoCapture', return_value=MyVideoCapture()) as _:
         with patch('aniseek.manager.SectionManager.get_mapping', return_value=frames_mapping) as _:
             manager = VideoManager(buffersize, log)
             playlist = Playlist(['video-01.mp4'])

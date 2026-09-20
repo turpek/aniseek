@@ -1,24 +1,24 @@
 from collections import deque
 from threading import Semaphore
 
-from cv2 import VideoCapture
 from loguru import logger
 from numpy import ndarray
 
 from aniseek.buffer_right import VideoBufferRight
 from aniseek.frame_mapper import FrameMapper
+from aniseek.interfaces.source import IFrameSource
 from aniseek.memento import Caretaker, TrashOriginator
 from aniseek.utils import FrameStack, FrameWrapper
 
 
 class Trash():
-    def __init__(self, cap: VideoCapture, semaphore: Semaphore, frame_count, buffersize=5, bufferlog=False):
+    def __init__(self, source: IFrameSource, semaphore: Semaphore, frame_count: int, buffersize=5, bufferlog=False):
         self.__buffersize = buffersize
         self.__frame_count = frame_count
         self._stack = FrameStack(2 * buffersize)
         self._dframes = dict()
         self._mapping = FrameMapper([], frame_count)
-        self._buffer = VideoBufferRight(cap, self._mapping, semaphore, buffersize=buffersize, bufferlog=bufferlog)
+        self._buffer = VideoBufferRight(source, self._mapping, semaphore, buffersize=buffersize, bufferlog=bufferlog)
         self._state = None
         self.__caretaker = Caretaker()
         self.__originator = TrashOriginator(self._mapping)

@@ -6,12 +6,12 @@ from pathlib import Path
 from threading import Semaphore
 from typing import Iterator
 
-import cv2
 from numpy import ndarray
 
 from aniseek.buffer_left import VideoBufferLeft
 from aniseek.buffer_right import VideoBufferRight
 from aniseek.frame_mapper import FrameMapper
+from aniseek.sources.opencv import OpenCVVideoSource
 from aniseek.time_utils import resolve_frame_range
 
 
@@ -27,7 +27,7 @@ class BaseVideoReader(ABC):
 
     def __init__(
         self,
-        video: str | Path | cv2.VideoCapture,
+        video: str | Path,
         *,
         start: int | float | str | None = None,
         end: int | float | str | None = None,
@@ -35,15 +35,9 @@ class BaseVideoReader(ABC):
         frames: list[int] | None = None,
         buffersize: int = 30,
     ) -> None:
-        if isinstance(video, (str, Path)):
-            self.cap = cv2.VideoCapture(str(video))
-            self._owns_cap = True
-        else:
-            self.cap = video
-            self._owns_cap = False
-
-        self.total_frames = int(self.cap.get(cv2.CAP_PROP_FRAME_COUNT))
-        self.fps = float(self.cap.get(cv2.CAP_PROP_FPS))
+        self.source = OpenCVVideoSource(video)
+        self.total_frames = self.source.frame_count
+        self.fps = self.source.fps
 
         if frames is not None:
             self.frame_ids = sorted(frames)
@@ -108,7 +102,7 @@ class ForwardReader(BaseVideoReader):
 
     def __init__(
         self,
-        video: str | Path | cv2.VideoCapture,
+        video: str | Path,
         *,
         start: int | float | str | None = None,
         end: int | float | str | None = None,
@@ -125,7 +119,7 @@ class ForwardReader(BaseVideoReader):
             buffersize=buffersize,
         )
         self.buffer = VideoBufferRight(
-            self.cap,
+            self.source,
             self.mapping,
             self.semaphore,
             buffersize=self.buffersize,
@@ -155,8 +149,7 @@ class ForwardReader(BaseVideoReader):
 
     def close(self) -> None:
         self.buffer.join()
-        if self._owns_cap and hasattr(self.cap, "release"):
-            self.cap.release()
+        self.source.release()
 
 
 class ReverseReader(BaseVideoReader):
@@ -164,7 +157,7 @@ class ReverseReader(BaseVideoReader):
 
     def __init__(
         self,
-        video: str | Path | cv2.VideoCapture,
+        video: str | Path,
         *,
         start: int | float | str | None = None,
         end: int | float | str | None = None,
@@ -181,7 +174,7 @@ class ReverseReader(BaseVideoReader):
             buffersize=buffersize,
         )
         self.buffer = VideoBufferLeft(
-            self.cap,
+            self.source,
             self.mapping,
             self.semaphore,
             buffersize=self.buffersize,
@@ -212,8 +205,7 @@ class ReverseReader(BaseVideoReader):
 
     def close(self) -> None:
         self.buffer.join()
-        if self._owns_cap and hasattr(self.cap, "release"):
-            self.cap.release()
+        self.source.release()
 
 
 class VideoReader(BaseVideoReader):
@@ -221,7 +213,7 @@ class VideoReader(BaseVideoReader):
 
     def __init__(
         self,
-        video: str | Path | cv2.VideoCapture,
+        video: str | Path,
         *,
         start: int | float | str | None = None,
         end: int | float | str | None = None,
@@ -239,13 +231,13 @@ class VideoReader(BaseVideoReader):
             buffersize=buffersize,
         )
         self.buf_right = VideoBufferRight(
-            self.cap,
+            self.source,
             self.mapping,
             self.semaphore,
             buffersize=self.buffersize,
         )
         self.buf_left = VideoBufferLeft(
-            self.cap,
+            self.source,
             self.mapping,
             self.semaphore,
             buffersize=self.buffersize,
@@ -315,5 +307,4 @@ class VideoReader(BaseVideoReader):
     def close(self) -> None:
         self.buf_right.join()
         self.buf_left.join()
-        if self._owns_cap and hasattr(self.cap, "release"):
-            self.cap.release()
+        self.source.release()

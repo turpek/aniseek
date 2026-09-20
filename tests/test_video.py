@@ -1,56 +1,16 @@
 from array import array
 from unittest.mock import patch
 
-import cv2
-import numpy as np
 import pytest
 from pytest import fixture
 
 from aniseek.video import VideoCon
-
-
-class MyVideoCapture():
-    def __init__(self):
-        self.frames = [np.zeros((2, 2)) for x in range(300)]
-        self.index = 0
-        self.isopened = True
-
-    def read(self):
-        if self.index < len(self.frames):
-            frame = self.frames[self.index]
-            self.index += 1
-            return True, frame
-        return False, None
-
-    def set(self, flag, value):
-        if cv2.CAP_PROP_POS_FRAMES == flag:
-            if len(self.frames) >= value and value >= 0:
-                self.index = value
-                return True
-            else:
-                return False
-        return False
-
-    def grab(self):
-        ...
-
-    def get(self, flag):
-        if cv2.CAP_PROP_FRAME_COUNT == flag:
-            return float(len(self.frames))
-        elif cv2.CAP_PROP_POS_FRAMES == flag:
-            return self.index
-        return False
-
-    def isOpened(self):
-        return self.isopened
-
-    def release(self):
-        ...
+from tests.uteis import MyVideoCapture
 
 
 @fixture
 def mycap():
-    with patch('aniseek.video.cv2.VideoCapture', return_value=MyVideoCapture()) as mock:
+    with patch('aniseek.sources.opencv.cv2.VideoCapture', return_value=MyVideoCapture(frame_count=300)) as mock:
         yield mock
 
 

@@ -1,15 +1,16 @@
-import pytest
 from collections import deque
-from aniseek.adapter import FakeSectionAdapter, FakeSectionManagerAdapter
-from aniseek.section import SectionManager, VideoSection, SectionWrapper
-from aniseek.custom_exceptions import SectionManagerError
-from aniseek.trash import Trash
-from pytest import fixture, raises
 from threading import Semaphore
 from unittest.mock import patch
-import numpy as np
-import cv2
 
+import numpy as np
+import pytest
+from pytest import fixture
+
+from aniseek.adapter import FakeSectionAdapter, FakeSectionManagerAdapter
+from aniseek.custom_exceptions import SectionManagerError
+from aniseek.section import SectionManager, SectionWrapper, VideoSection
+from aniseek.trash import Trash
+from tests.uteis import MyVideoCapture as BaseMyVideoCapture
 
 black_list_100 = [200, 201, 202, 203, 204, 205, 206, 207, 208, 209, 210, 211, 212, 213, 214, 215, 216, 217, 218, 219, 220, 221, 222, 223, 224, 225, 226, 227, 228, 229, 230, 231, 232, 233, 234, 235, 236, 237, 238, 239, 240, 241, 242, 243, 244, 245, 246, 247, 248, 249, 250, 251, 252, 253, 254, 255, 256, 257, 258, 259, 260, 261, 262, 263, 264, 265, 266, 267, 268, 269, 270, 271, 272, 273, 274, 275, 276, 277, 278, 279, 280, 281, 282, 283, 284, 285, 286, 287, 288, 289, 290, 291, 292, 293, 294, 295, 296, 297, 298]
 
@@ -114,43 +115,10 @@ FAKEMAN1 = {
     ]
 }
 
-class MyVideoCapture():
+
+class MyVideoCapture(BaseMyVideoCapture):
     def __init__(self):
-        self.frames = [np.zeros((2, 2)) for x in range(5000)]
-        self.index = 0
-        self.isopened = True
-
-    def read(self):
-        if self.index < len(self.frames):
-            frame = self.frames[self.index]
-            self.index += 1
-            return True, frame
-        return False, None
-
-    def grab(self):
-        self.index += 1
-
-    def set(self, flag, value):
-        if cv2.CAP_PROP_POS_FRAMES == flag:
-            if len(self.frames) >= value and value >= 0:
-                self.index = value
-                return True
-            else:
-                return False
-        return False
-
-    def get(self, flag):
-        if cv2.CAP_PROP_FRAME_COUNT == flag:
-            return len(self.frames)
-        elif cv2.CAP_PROP_POS_FRAMES == flag:
-            return self.index
-        return False
-
-    def isOpened(self):
-        return self.isopened
-
-    def release(self):
-        ...
+        super().__init__(frame_count=5000)
 
 
 @fixture

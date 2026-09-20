@@ -2,14 +2,13 @@ from array import array
 from pathlib import Path
 from threading import Semaphore
 
-import cv2
-
 from aniseek.buffer_left import VideoBufferLeft
 from aniseek.buffer_right import VideoBufferRight
 from aniseek.frame_mapper import FrameMapper
 from aniseek.player_control import PlayerControl
 from aniseek.section import SectionManager
 from aniseek.section_service import SectionService
+from aniseek.sources.opencv import OpenCVVideoSource
 from aniseek.trash import Trash
 from aniseek.utils import VideoInfo
 
@@ -45,10 +44,10 @@ class VideoManager:
         else:
             return FrameMapper(frame_ids, frame_count)
 
-    def load_capture(self, file_path):
-        self.path = file_path
-        self.__cap = cv2.VideoCapture(str(self.path))
-        self.frame_count = int(self.__cap.get(cv2.CAP_PROP_FRAME_COUNT))
+    def load_capture(self, file_path: str | Path) -> None:
+        self.path = Path(file_path)
+        self.source = OpenCVVideoSource(self.path)
+        self.frame_count = self.source.frame_count
 
     def load_section_manager(self, file_path: Path, label: str, file_format: str):
         frame_count = self.frame_count
@@ -59,7 +58,7 @@ class VideoManager:
         self.mapping = self.set_mapping(frames_mapping)
 
     def load_trash(self, section_manager: SectionManager):
-        args = (self.__cap, self.semaphore, self.frame_count)
+        args = (self.source, self.semaphore, self.frame_count)
         if isinstance(self.trash, Trash):
             self.trash._buffer.join_like()
         self.trash = Trash(*args, buffersize=20)
@@ -69,7 +68,7 @@ class VideoManager:
         self.player.set_buffers(servant, master)
 
     def load_buffers(self):
-        args = (self.__cap, self.mapping, self.semaphore)
+        args = (self.source, self.mapping, self.semaphore)
         bsize, log = self.__buffersize, self.__log
         self.servant = VideoBufferRight(*args, buffersize=bsize, bufferlog=log)
         self.master = VideoBufferLeft(*args, buffersize=bsize, bufferlog=log)
@@ -96,7 +95,7 @@ class VideoManager:
         return section_manager
 
     def load_video_info(self, video_info: VideoInfo):
-        video_info.load_video_property(self.__cap)
+        video_info.load_video_property(self.source)
 
     def save_section(self,
                      section_manager: SectionManager,

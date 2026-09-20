@@ -7,8 +7,17 @@ from tests.uteis import MyVideoCapture
 
 
 @pytest.fixture
-def synthetic_cap():
+def mock_video_capture():
     return MyVideoCapture()
+
+
+@pytest.fixture
+def synthetic_cap(monkeypatch, mock_video_capture):
+    monkeypatch.setattr(
+        "aniseek.sources.opencv.cv2.VideoCapture",
+        lambda _: mock_video_capture,
+    )
+    return "video.mp4"
 
 
 @pytest.mark.parametrize(
@@ -210,9 +219,9 @@ def test_video_reader_direction_swapping(synthetic_cap):
     assert f4 == 1
 
 
-def test_forward_reader_continues_on_none_frame(synthetic_cap):
+def test_forward_reader_continues_on_none_frame(synthetic_cap, mock_video_capture):
     """Verifica se o iterador continua até o término da tarefa mesmo quando um frame falha."""
-    synthetic_cap.frames[2] = None
+    mock_video_capture.frames[2] = None
 
     with ForwardReader(synthetic_cap, start=0, end=5, buffersize=5) as reader:
         results = [(ret, f is not None, reader.frame_id) for ret, f in reader]

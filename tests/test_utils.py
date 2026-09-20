@@ -1,7 +1,23 @@
 
+import bisect
 from collections import deque
-from .uteis import MyVideoCapture
-from aniseek.custom_exceptions import FrameStackError, FrameWrapperError, SimpleStackError
+from pathlib import Path
+from threading import Semaphore
+from unittest.mock import patch
+
+import numpy as np
+import pytest
+from pytest import fixture, raises
+
+from aniseek.adapter import FakeSectionAdapter
+from aniseek.custom_exceptions import (
+    FrameStackError,
+    FrameWrapperError,
+    SimpleStackError,
+)
+from aniseek.memento import Caretaker, SectionOriginator, TrashOriginator
+from aniseek.section import SectionWrapper, VideoSection
+from aniseek.trash import Trash
 from aniseek.utils import (
     FrameMementoHandler,
     FrameStack,
@@ -9,19 +25,10 @@ from aniseek.utils import (
     SectionMementoHandler,
     SimpleStack,
     VideoInfo,
-    partition_by_value
+    partition_by_value,
 )
-from aniseek.memento import Caretaker, TrashOriginator, SectionOriginator
-from aniseek.section import VideoSection, SectionWrapper
-from aniseek.adapter import FakeSectionAdapter
-from aniseek.trash import Trash
-from threading import Semaphore
-from pytest import fixture, raises
-from unittest.mock import patch
-from pathlib import Path
-import pytest
-import numpy as np
 
+from .uteis import MyVideoCapture
 
 FAKES = {
     'SECTION_IDS': [1, 2, 4],
