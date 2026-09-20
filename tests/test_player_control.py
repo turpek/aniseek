@@ -1867,3 +1867,35 @@ def test_player_control__is_valid_backward_com_3_frames_com_frame_id_meio(player
     [player.read() for _ in range(4)]
     result = player._is_valid_backward(3)
     assert expect == result
+
+
+# ########### Testes de troca de direção no modo pausado por delay ############ #
+
+
+@pytest.mark.parametrize('player', [(list(range(10)), 25)], indirect=True)
+def test_player_control_troca_de_direcao_em_pause_delay_le_imediatamente_proximo_frame(player):
+    """Verifica se a troca de direção quando pausado por delay lê imediatamente o próximo frame."""
+    [player.read() for _ in range(5)]
+    assert player.frame_id == 4
+
+    player.pause_delay()
+    idle_ret, idle_frame = player.read()
+    assert idle_ret is False
+    assert idle_frame is None
+
+    player.rewind()
+    player.set_read()
+    ret_rewind, frame_rewind = player.read()
+    assert ret_rewind is True
+    assert player.frame_id == 3
+
+    player.set_read()
+    ret_rewind_2, _ = player.read()
+    assert ret_rewind_2 is True
+    assert player.frame_id == 2
+
+    player.proceed()
+    player.set_read()
+    ret_proceed, _ = player.read()
+    assert ret_proceed is True
+    assert player.frame_id == 3

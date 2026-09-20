@@ -1369,3 +1369,26 @@ def test_video_controller_section_manager_property(controller_section):
     ctrl = controller_section
     assert ctrl.section_manager is not None
     assert ctrl.section_manager.current_index == 0
+
+
+@pytest.mark.parametrize('video', [(list(range(20)), 25, 20, False)], indirect=True)
+def test_video_controller_troca_de_direcao_pausado_com_delay(video):
+    """Verifica que ao mudar de direção no modo pausado o próximo frame é lido no primeiro comando."""
+    for _ in range(5):
+        video.read()
+    assert video.frame_id == 4
+
+    video.pause_delay()
+    idle_ret, idle_frame = video.read()
+    assert idle_ret is False
+    assert idle_frame is None
+
+    video.rewind()
+    ret1, _ = video.read()
+    assert ret1 is True
+    assert video.frame_id == 3
+
+    video.proceed()
+    ret2, _ = video.read()
+    assert ret2 is True
+    assert video.frame_id == 4

@@ -150,7 +150,6 @@ class VideoController:
 
     def pause_delay(self):
         self.__player.pause_delay()
-        self.__player.disable_collect()
 
     def restore_delay(self):
         self.__player.restore_delay()

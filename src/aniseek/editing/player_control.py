@@ -120,8 +120,10 @@ class PlayerControl:
                 - O segundo valor é um `ndarray` representando o frame lido, ou `None` se a operação falhar.
         """
 
+        if self.pause() or self.no_read():
+            return False, None
         self.collect_frame()
-        if self.servant.is_task_complete() or self.pause() or self.no_read():
+        if self.servant.is_task_complete():
             return False, None
         elif self.can_update_frame():
             self.update_frame(*self.servant.get())
