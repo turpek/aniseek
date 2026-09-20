@@ -1,5 +1,5 @@
-from aniseek.interfaces import Command
-from aniseek.video_controller import VideoController
+from aniseek.view.interfaces.command import Command
+from aniseek.view.video_controller import VideoController
 
 
 class PauseCommand(Command):

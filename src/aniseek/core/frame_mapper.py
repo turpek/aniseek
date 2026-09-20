@@ -1,8 +1,8 @@
 import bisect
 from array import array
 
+from aniseek.core.interfaces.buffer import IVideoBuffer
 from aniseek.custom_exceptions import InvalidFrameIdError
-from aniseek.interfaces import IVideoBuffer
 
 
 class FrameMapper:

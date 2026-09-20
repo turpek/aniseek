@@ -4,7 +4,7 @@ from unittest.mock import patch
 import numpy as np
 from pytest import fixture
 
-from aniseek.trash import Trash
+from aniseek.editing.trash import Trash
 from tests.uteis import MyVideoCapture
 
 

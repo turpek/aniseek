@@ -1,6 +1,6 @@
 import json
 
-from aniseek.interfaces import IDataReader, IDataWriter
+from aniseek.editing.interfaces.section import IDataReader, IDataWriter
 
 
 class JSONReader(IDataReader):

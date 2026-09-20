@@ -9,16 +9,20 @@ import numpy as np
 import pytest
 from pytest import fixture, raises
 
-from aniseek.adapter import FakeSectionAdapter
 from aniseek.custom_exceptions import (
     FrameStackError,
     FrameWrapperError,
     SimpleStackError,
 )
-from aniseek.memento import Caretaker, SectionOriginator, TrashOriginator
-from aniseek.section import SectionWrapper, VideoSection
-from aniseek.trash import Trash
-from aniseek.utils import (
+from aniseek.editing.adapter import FakeSectionAdapter
+from aniseek.editing.memento import (
+    Caretaker,
+    SectionOriginator,
+    TrashOriginator,
+)
+from aniseek.editing.section import SectionWrapper, VideoSection
+from aniseek.editing.trash import Trash
+from aniseek.editing.utils import (
     FrameMementoHandler,
     FrameStack,
     FrameWrapper,
@@ -51,7 +55,6 @@ class MockFrameMapper:
             return self.__frame_ids[index]
 
     def add(self, value):
-        import bisect
         bisect.insort_left(self.__frame_ids, value)
 
 

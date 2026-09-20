@@ -7,6 +7,13 @@ try:
 except PackageNotFoundError:
     __version__ = "0.1.0a1"
 
+from aniseek.core.video_reader import (
+    BaseVideoReader,
+    Direction,
+    ForwardReader,
+    ReverseReader,
+    VideoReader,
+)
 from aniseek.time_utils import (
     frame_to_seconds,
     frame_to_timestamp,
@@ -14,13 +21,6 @@ from aniseek.time_utils import (
     seconds_to_timestamp,
     time_to_frame,
     timestamp_to_seconds,
-)
-from aniseek.video_reader import (
-    BaseVideoReader,
-    Direction,
-    ForwardReader,
-    ReverseReader,
-    VideoReader,
 )
 
 __all__ = [

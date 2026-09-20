@@ -5,17 +5,21 @@ from copy import deepcopy
 
 from loguru import logger
 
-from aniseek.adapter import (
+from aniseek.core.frame_mapper import FrameMapper
+from aniseek.custom_exceptions import SectionManagerError
+from aniseek.editing.adapter import (
     ISectionAdapter,
     ISectionManagerAdapter,
     SectionSplitProcess,
     SectionUnionAdapter,
 )
-from aniseek.custom_exceptions import SectionManagerError
-from aniseek.frame_mapper import FrameMapper
-from aniseek.memento import Caretaker, SectionOriginator
-from aniseek.trash import Trash
-from aniseek.utils import FrameMementoHandler, SectionMementoHandler, SimpleStack
+from aniseek.editing.memento import Caretaker, SectionOriginator
+from aniseek.editing.trash import Trash
+from aniseek.editing.utils import (
+    FrameMementoHandler,
+    SectionMementoHandler,
+    SimpleStack,
+)
 
 
 class VideoSection:

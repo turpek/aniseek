@@ -3,10 +3,10 @@ from time import sleep
 import cv2
 from loguru import logger
 
-from aniseek.adapter import ISectionManagerAdapter
-from aniseek.manager import VideoManager
-from aniseek.playlist import Playlist
-from aniseek.video_command import (
+from aniseek.editing.interfaces.section import ISectionManagerAdapter
+from aniseek.editing.manager import VideoManager
+from aniseek.editing.playlist import Playlist
+from aniseek.view.video_command import (
     DecreaseSpeedCommand,
     IncreaseSpeedCommand,
     Invoker,
@@ -27,7 +27,7 @@ from aniseek.video_command import (
     UndoFrameCommand,
     UndoSectionCommand,
 )
-from aniseek.video_controller import VideoController
+from aniseek.view.video_controller import VideoController
 
 
 class VideoCon:

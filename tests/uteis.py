@@ -3,7 +3,7 @@ from __future__ import annotations
 import cv2
 import numpy as np
 
-from aniseek.interfaces.source import IFrameSource
+from aniseek.core.interfaces.source import IFrameSource
 
 
 class MyVideoCapture(IFrameSource):

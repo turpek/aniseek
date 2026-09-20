@@ -3,8 +3,8 @@ from __future__ import annotations
 import traceback
 from time import time
 
-from aniseek.buffer import Buffer
-from aniseek.interfaces.source import IFrameSource
+from aniseek.core.buffer import Buffer
+from aniseek.core.interfaces.source import IFrameSource
 
 ReaderTaskData = tuple[IFrameSource, int, int, set[int]]
 

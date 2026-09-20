@@ -3,7 +3,7 @@ from pathlib import Path
 from pytest import fixture, raises
 
 from aniseek.custom_exceptions import PlaylistError
-from aniseek.playlist import Playlist
+from aniseek.editing.playlist import Playlist
 
 
 @fixture

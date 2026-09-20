@@ -25,12 +25,12 @@ from threading import Semaphore, Thread
 from loguru import logger
 from numpy import ndarray
 
-from aniseek.buffer import BufferRight
+from aniseek.core.buffer import BufferRight
+from aniseek.core.frame_mapper import FrameMapper
+from aniseek.core.interfaces.buffer import IVideoBuffer
+from aniseek.core.interfaces.source import IFrameSource
+from aniseek.core.reader import reader
 from aniseek.custom_exceptions import VideoBufferError
-from aniseek.frame_mapper import FrameMapper
-from aniseek.interfaces import IVideoBuffer
-from aniseek.interfaces.source import IFrameSource
-from aniseek.reader import reader
 
 
 class VideoBufferRight(IVideoBuffer):

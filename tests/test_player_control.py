@@ -6,11 +6,11 @@ import numpy as np
 import pytest
 from pytest import fixture
 
-from aniseek.buffer_left import VideoBufferLeft
-from aniseek.buffer_right import VideoBufferRight
-from aniseek.frame_mapper import FrameMapper
-from aniseek.interfaces.source import IFrameSource
-from aniseek.player_control import PlayerControl
+from aniseek.core.buffer_left import VideoBufferLeft
+from aniseek.core.buffer_right import VideoBufferRight
+from aniseek.core.frame_mapper import FrameMapper
+from aniseek.core.interfaces.source import IFrameSource
+from aniseek.editing.player_control import PlayerControl
 
 
 def lote(start, end, step=1):

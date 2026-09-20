@@ -4,11 +4,11 @@ from threading import Semaphore
 from loguru import logger
 from numpy import ndarray
 
-from aniseek.buffer_right import VideoBufferRight
-from aniseek.frame_mapper import FrameMapper
-from aniseek.interfaces.source import IFrameSource
-from aniseek.memento import Caretaker, TrashOriginator
-from aniseek.utils import FrameStack, FrameWrapper
+from aniseek.core.buffer_right import VideoBufferRight
+from aniseek.core.frame_mapper import FrameMapper
+from aniseek.core.interfaces.source import IFrameSource
+from aniseek.editing.memento import Caretaker, TrashOriginator
+from aniseek.editing.utils import FrameStack, FrameWrapper
 
 
 class Trash():

@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import pytest
 
-from aniseek.sources.opencv import OpenCVVideoSource
+from aniseek.core.sources.opencv import OpenCVVideoSource
 from tests.uteis import MyVideoCapture
 
 

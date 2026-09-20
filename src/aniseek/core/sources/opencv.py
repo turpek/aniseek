@@ -5,7 +5,7 @@ from pathlib import Path
 import cv2
 from numpy import ndarray
 
-from aniseek.interfaces.source import IFrameSource
+from aniseek.core.interfaces.source import IFrameSource
 
 
 class OpenCVVideoSource(IFrameSource):

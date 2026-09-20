@@ -4,7 +4,7 @@ from time import sleep
 import numpy as np
 from pytest import fixture
 
-from aniseek.buffer import FakeBuffer as Buffer
+from aniseek.core.buffer import FakeBuffer as Buffer
 
 
 @fixture
@@ -59,10 +59,12 @@ def test_clear_do_buffer(buffer):
     result = buffer.task_is_done()
     assert expect == result
 
+
 def test_buffer_esta_vazio(buffer):
     expect = True
     result = buffer.empty()
     assert expect == result
+
 
 def test_buffer_colocando_1_frame_no_buffer_manualmente(buffer):
     expect = False
