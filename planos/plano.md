@@ -10,9 +10,9 @@ Este documento centraliza todos os objetivos arquiteturais, otimizações estrut
 - [x] 2. Otimização de busca binária e pulos leves de cabeçalho (`grab`) com `FrameMapper`.
 - [x] 3. Sistema cooperativo de duplo buffer concorrente (`VideoBufferRight` & `VideoBufferLeft`).
 - [x] 4. Módulo de input desacoplado com `PynputKeyReader` (suporte a `Ctrl`), `CV2KeyReader` (fallback) e atalhos padronizados.
-- [ ] 5. **Bugfix no `SectionManager.remove_section` / `VideoManager.create`:** Falha `AttributeError: 'NoneType' object has no attribute '_calculate_mapping'` ao remover seção quando pausado (`Ctrl + x`).
-- [ ] 6. **Refatoração de Usabilidade das Seções & Modo Preview da Montagem Final (UX / Funcional).**
-- [ ] 7. **Refatoração Arquitetural e Manutenibilidade do Subsistema de Seções (Clean Code / Arquitetura Interna).**
+- [x] 5. **Bugfix no `SectionManager.remove_section` / `VideoManager.create`:** Falha `AttributeError: 'NoneType' object has no attribute '_calculate_mapping'` ao remover seção quando pausado (`Ctrl + x`).
+- [x] 6. **Refatoração de Usabilidade das Seções & Modo Preview da Montagem Final (UX / Funcional).**
+- [x] 7. **Refatoração Arquitetural e Manutenibilidade do Subsistema de Seções (Clean Code / Arquitetura Interna).**
 
 ---
 
@@ -137,22 +137,22 @@ Esta tarefa foca estritamente na experiência do usuário (UX), ergonomia dos at
 
 #### 📋 Sub-lista de Objetivos da Tarefa 6
 
-- [ ] **6.1. Dividir Seção (`Split — Ctrl + s`) Sensível ao Sentido do Buffer:**
+- [x] **6.1. Dividir Seção (`Split — Ctrl + s`) Sensível ao Sentido do Buffer:**
   - Aterrissar o cursor no sentido do movimento (`proceed` $\rightarrow$ início da seção da direita; `rewind` $\rightarrow$ fim da seção da esquerda).
   - Bloquear divisão inválida nos limites extremos (`frame_id == start` ou `frame_id == end - 1`) com feedback amigável.
-- [ ] **6.2. Juntar Seções (`Join — Ctrl + j`) Contextual e Bidirecional:**
+- [x] **6.2. Juntar Seções (`Join — Ctrl + j`) Contextual e Bidirecional:**
   - Regra de ponta automática (primeira junta com próxima; última junta com anterior).
   - Regra de meio automática orientada pelo sentido da reprodução (`proceed` $\rightarrow$ direita; `rewind` $\rightarrow$ esquerda).
   - Operação determinística e sem timers.
-- [ ] **6.3. Navegação entre Seções (`Next / Prev — Ctrl + d / Ctrl + a`) no Frame Mais Próximo:**
+- [x] **6.3. Navegação entre Seções (`Next / Prev — Ctrl + d / Ctrl + a`) no Frame Mais Próximo:**
   - `Ctrl + d`: Aterrissa no início da próxima seção (`start`).
   - `Ctrl + a`: Aterrissa no fim da seção anterior (`end - 1`).
   - Atalhos universais `Home` e `End` para saltar para o início e fim da seção atual.
-- [ ] **6.4. Feedback Visual Imediato e Correção de Congelamento na Pausa com Espaço:**
+- [x] **6.4. Feedback Visual Imediato e Correção de Congelamento na Pausa com Espaço:**
   - Chamar `set_read()` em todas as operações de seção para destravar o `no_read()`.
-  - Inicializar os buffers com `servant.run()` no `VideoManager.create()`.
-  - Atualização dinâmica do título da janela OpenCV (`videoseq - [Seção X/Y | Frame A/B] (PAUSADO)`).
-- [ ] **6.5. Modo Preview da Montagem Final (`Rough Cut Preview` — Tecla `v`):**
+  - Alinhamento do sentido de reprodução (`proceed` / `rewind`) e compensação de offset em navegações e extremos.
+  - Atualização dinâmica do título da janela OpenCV (`videoseq - [Seção X/Y | Frames A-B | Frame: C] [>>/<<] (PAUSADO)`).
+- [x] **6.5. Modo Preview da Montagem Final (`Rough Cut Preview` — Tecla `v`):**
   - Implementar "lente de visualização" da união de todas as seções ativas (`get_preview_mapping()`), ocultando trechos removidos e lixeira.
   - Preservação estrita de estado: `frame_id`, direção, estado de pausa e velocidade permanecem 100% inalterados ao alternar `v`.
   - Sincronização da seção ativa com a seção do frame atual ao desativar o Preview.
@@ -200,23 +200,23 @@ Esta tarefa foca na modernização da arquitetura interna, eliminando acoplament
 
 #### 📋 Sub-lista de Etapas da Tarefa 7
 
-- [ ] **7.1. Simplificação da Entidade Base `VideoSection`:**
+- [x] **7.1. Simplificação da Entidade Base `VideoSection`:**
   - Construtor direto sem dependência obrigatória de adapters (`start`, `end`, `removed_frames`, `black_list_frames`).
   - Métodos `split(frame_id)` e `join(other)` analíticos e diretos em memória.
   - Métodos de serialização `from_dict(data)` e `to_dict()`.
   - Ordenação determinística de `mapping` via `sorted(frames - removed)`.
   - Eliminação de `ISectionAdapter`, `JSONSectionAdapter`, `FakeSectionAdapter`, `SectionUnionAdapter` e `SectionSplitProcess`.
-- [ ] **7.2. Modernização do `SectionManager` (Lista com Cursor):**
+- [x] **7.2. Modernização do `SectionManager` (Lista com Cursor):**
   - Substituição do modelo de 2 pilhas (`SimpleStack(_left)` e `SimpleStack(_right)`) por `_sections: list[VideoSection]` e `_current_index: int`.
   - Acesso direto $O(1)$ à seção ativa (`current_section`), próxima e anterior.
   - Implementação de `can_next()`, `can_prev()`, `can_join_next()`, `can_join_prev()`.
   - Implementação de `get_preview_mapping()` para montagem contínua.
-- [ ] **7.3. Simplificação do Histórico de Undo / Memento:**
+- [x] **7.3. Simplificação do Histórico de Undo / Memento:**
   - Eliminação da classe `SectionWrapper`.
   - Substituição das 9 classes/interfaces de Memento de seções por uma pilha simples de snapshots/ações (`_undo_stack: deque`).
-- [ ] **7.4. Simplificação da Persistência JSON:**
+- [x] **7.4. Simplificação da Persistência JSON:**
   - Consolidação das 8 classes de I/O (`SectionService`, `TemplateFactory`, `SectionManagerProcessFactory`, `JSONSectionSave`, `JSONReader`, `JSONWriter`, etc.) em um módulo coeso de armazenamento (`SectionStorage` ou métodos estáticos em `SectionManager`).
-- [ ] **7.5. Migração e Limpeza dos Testes Unitários:**
+- [x] **7.5. Migração e Limpeza dos Testes Unitários:**
   - Adaptação dos testes de `tests/test_section.py` para a nova API limpa e direta, removendo mocks e adapters obsoletos.
 
 ---
