@@ -1,7 +1,8 @@
-from __future__ import annotations
-
+import cv2
+import numpy as np
 import pytest
 
+from aniseek.core.sources.opencv import OpenCVVideoSource
 from aniseek.core.video_reader import (
     Direction,
     ForwardReader,
@@ -17,12 +18,14 @@ def mock_video_capture():
 
 
 @pytest.fixture
-def synthetic_cap(monkeypatch, mock_video_capture):
+def synthetic_cap(tmp_path, monkeypatch, mock_video_capture):
+    dummy_video = tmp_path / "video.mp4"
+    dummy_video.touch()
     monkeypatch.setattr(
         "aniseek.core.sources.opencv.cv2.VideoCapture",
         lambda _: mock_video_capture,
     )
-    return "video.mp4"
+    return OpenCVVideoSource(dummy_video)
 
 
 @pytest.mark.parametrize(
@@ -291,3 +294,42 @@ def test_video_reader_set_bounds(synthetic_cap):
         remaining = [reader.frame_id for _, _ in reader]
 
     assert remaining == [5, 6, 7, 8, 9]
+
+
+def test_reader_raises_on_invalid_source_type():
+    """Verifica se TypeError é levantado ao instanciar leitor com objeto que não é IFrameSource."""
+    with pytest.raises(TypeError):
+        ForwardReader("video.mp4")
+
+    with pytest.raises(TypeError):
+        VideoReader(123)
+
+
+def test_video_reader_from_default_video(tmp_path, monkeypatch, mock_video_capture):
+    """Valida instanciação via from_default para arquivo de vídeo."""
+    dummy_video = tmp_path / "video.mp4"
+    dummy_video.touch()
+    monkeypatch.setattr(
+        "aniseek.core.sources.opencv.cv2.VideoCapture",
+        lambda _: mock_video_capture,
+    )
+
+    with VideoReader.from_default(dummy_video, start=0, end=5, buffersize=5) as reader:
+        assert isinstance(reader.source, OpenCVVideoSource)
+        frames = [reader.frame_id for _, _ in reader]
+
+    assert frames == [0, 1, 2, 3, 4]
+
+
+def test_video_reader_from_default_images(tmp_path):
+    """Valida instanciação via from_default para diretório de imagens."""
+    img_dir = tmp_path / "frames"
+    img_dir.mkdir()
+    for i in range(5):
+        img = np.full((10, 10, 3), i * 20, dtype=np.uint8)
+        cv2.imwrite(str(img_dir / f"f_{i:02d}.png"), img)
+
+    with VideoReader.from_default(img_dir, start=0, end=5, buffersize=5) as reader:
+        frames = [reader.frame_id for _, _ in reader]
+
+    assert frames == [0, 1, 2, 3, 4]
