@@ -993,3 +993,379 @@ def test_player_control_simulando_o_bug_ao_remover_o_1o_frame_versao_2(video):
 
     result = video.frame_id
     assert expect == result
+
+
+# ######### Testes para split_section direcional ##################################
+
+@fixture
+def controller_section(mycap):
+    with patch('aniseek.core.sources.opencv.cv2.VideoCapture', return_value=MyVideoCapture(True, 100)):
+        manager = VideoManager(25, False)
+        playlist = Playlist(['test_video.mp4'])
+        ctrl = VideoController(playlist, None, manager)
+        yield ctrl
+    ctrl.join()
+
+
+def test_split_section_direcional_em_modo_proceed(controller_section):
+    """Verifica split_section em modo proceed pousando no início da seção direita."""
+    ctrl = controller_section
+    ctrl.player.servant.run()
+    ctrl.player.servant._buffer.wait_task()
+    for _ in range(10):
+        ctrl.read()
+    curr_frame = ctrl.frame_id
+    ctrl.split_section()
+
+    assert ctrl.section_manager.current_index == 1
+    assert ctrl.section_manager.current_section.id == curr_frame
+    assert not ctrl.player.is_rewind
+
+
+def test_split_section_direcional_em_modo_rewind(controller_section):
+    """Verifica split_section em modo rewind pousando no final da seção esquerda."""
+    ctrl = controller_section
+    ctrl.player.servant.run()
+    ctrl.player.servant._buffer.wait_task()
+    for _ in range(10):
+        ctrl.read()
+    ctrl.rewind()
+    ctrl.split_section()
+
+    assert ctrl.section_manager.current_index == 0
+    assert ctrl.section_manager.current_section.id == 0
+    assert ctrl.player.is_rewind
+
+
+def test_split_section_rejeita_divisao_no_primeiro_frame(controller_section):
+    """Verifica rejeição de split_section quando frame_id é o primeiro da seção."""
+    ctrl = controller_section
+    ctrl.player.servant.run()
+    ctrl.player.servant._buffer.wait_task()
+    ctrl.read()
+
+    assert ctrl.frame_id == 0
+    ctrl.split_section()
+    assert len(ctrl.section_manager.sections) == 1
+
+
+# ######### Testes para join_section contextual ##################################
+
+def test_join_section_na_ponta_esquerda(controller_section):
+    """Verifica join_section na primeira seção unindo automaticamente com a próxima."""
+    ctrl = controller_section
+    ctrl.player.servant.run()
+    ctrl.player.servant._buffer.wait_task()
+    for _ in range(10):
+        ctrl.read()
+    ctrl.split_section()
+    ctrl.prev_section()
+    assert ctrl.section_manager.current_index == 0
+    ctrl.join_section()
+    assert len(ctrl.section_manager.sections) == 1
+    assert ctrl.section_manager.current_section.end == 100
+    assert ctrl.section_manager.current_section.mapping[-1] == 99
+
+
+def test_join_section_na_ponta_direita(controller_section):
+    """Verifica join_section na última seção unindo automaticamente com a anterior."""
+    ctrl = controller_section
+    ctrl.player.servant.run()
+    ctrl.player.servant._buffer.wait_task()
+    for _ in range(10):
+        ctrl.read()
+    ctrl.split_section()
+    assert ctrl.section_manager.current_index == 1
+    ctrl.join_section()
+    assert len(ctrl.section_manager.sections) == 1
+    assert ctrl.section_manager.current_section.start == 0
+
+
+def test_join_section_intermediaria_em_proceed(controller_section):
+    """Verifica join_section intermediária em modo proceed unindo com a próxima seção."""
+    ctrl = controller_section
+    ctrl.player.servant.run()
+    ctrl.player.servant._buffer.wait_task()
+    for _ in range(5):
+        ctrl.read()
+    ctrl.split_section()
+    for _ in range(5):
+        ctrl.read()
+    ctrl.split_section()
+    ctrl.prev_section()
+    assert ctrl.section_manager.current_index == 1
+    ctrl.proceed()
+    ctrl.join_section()
+    assert len(ctrl.section_manager.sections) == 2
+    assert ctrl.section_manager.current_section.end == 100
+    assert ctrl.section_manager.current_section.mapping[-1] == 99
+
+
+def test_join_section_intermediaria_em_rewind(controller_section):
+    """Verifica join_section intermediária em modo rewind unindo com a seção anterior."""
+    ctrl = controller_section
+    ctrl.player.servant.run()
+    ctrl.player.servant._buffer.wait_task()
+    for _ in range(5):
+        ctrl.read()
+    ctrl.split_section()
+    for _ in range(5):
+        ctrl.read()
+    ctrl.split_section()
+    ctrl.prev_section()
+    assert ctrl.section_manager.current_index == 1
+    ctrl.rewind()
+    ctrl.join_section()
+    assert len(ctrl.section_manager.sections) == 2
+    assert ctrl.section_manager.current_section.start == 0
+
+
+def test_join_section_secao_unica_sem_efeito(controller_section):
+    """Verifica que join_section em seção única não altera a lista de seções."""
+    ctrl = controller_section
+    ctrl.player.servant.run()
+    ctrl.player.servant._buffer.wait_task()
+    ctrl.read()
+    ctrl.join_section()
+    assert len(ctrl.section_manager.sections) == 1
+
+
+# ######### Testes para navegação entre seções e extremos ########################
+
+def test_next_section_aterrissa_no_inicio_da_proxima_secao(controller_section):
+    """Verifica que next_section posiciona o player no primeiro frame da próxima seção."""
+    ctrl = controller_section
+    ctrl.player.servant.run()
+    ctrl.player.servant._buffer.wait_task()
+    for _ in range(10):
+        ctrl.read()
+    split_frame = ctrl.frame_id
+    ctrl.split_section()
+    ctrl.prev_section()
+    assert ctrl.section_manager.current_index == 0
+    ctrl.next_section()
+    assert ctrl.section_manager.current_index == 1
+    ctrl.read()
+    assert ctrl.frame_id == split_frame
+
+
+def test_prev_section_aterrissa_no_fim_da_secao_anterior(controller_section):
+    """Verifica que prev_section posiciona o player no último frame da seção anterior."""
+    ctrl = controller_section
+    ctrl.player.servant.run()
+    ctrl.player.servant._buffer.wait_task()
+    for _ in range(10):
+        ctrl.read()
+    split_frame = ctrl.frame_id
+    ctrl.split_section()
+    assert ctrl.section_manager.current_index == 1
+    ctrl.prev_section()
+    assert ctrl.section_manager.current_index == 0
+    ctrl.read()
+    assert ctrl.frame_id == split_frame - 1
+
+
+def test_jump_section_start_aterrissa_no_primeiro_frame(controller_section):
+    """Verifica que jump_section_start posiciona o player no primeiro frame da seção ativa."""
+    ctrl = controller_section
+    ctrl.player.servant.run()
+    ctrl.player.servant._buffer.wait_task()
+    for _ in range(15):
+        ctrl.read()
+    assert ctrl.frame_id == 14
+    ctrl.jump_section_start()
+    ctrl.read()
+    assert ctrl.frame_id == 0
+    ctrl.read()
+    assert ctrl.frame_id == 1
+
+
+def test_jump_section_end_aterrissa_no_ultimo_frame(controller_section):
+    """Verifica que jump_section_end posiciona o player no último frame da seção ativa."""
+    ctrl = controller_section
+    ctrl.player.servant.run()
+    ctrl.player.servant._buffer.wait_task()
+    ctrl.read()
+    assert ctrl.frame_id == 0
+    ctrl.jump_section_end()
+    ctrl.read()
+    assert ctrl.frame_id == 99
+
+
+def test_prev_section_alterna_para_rewind(controller_section):
+    """Verifica que prev_section altera o sentido do player para rewind."""
+    ctrl = controller_section
+    ctrl.player.servant.run()
+    ctrl.player.servant._buffer.wait_task()
+    for _ in range(5):
+        ctrl.read()
+    ctrl.split_section()
+    assert ctrl.player.is_rewind is False
+    ctrl.prev_section()
+    assert ctrl.player.is_rewind is True
+
+
+def test_next_section_alterna_para_proceed(controller_section):
+    """Verifica que next_section altera o sentido do player para proceed."""
+    ctrl = controller_section
+    ctrl.player.servant.run()
+    ctrl.player.servant._buffer.wait_task()
+    for _ in range(5):
+        ctrl.read()
+    ctrl.split_section()
+    ctrl.prev_section()
+    assert ctrl.player.is_rewind is True
+    ctrl.next_section()
+    assert ctrl.player.is_rewind is False
+
+
+def test_jump_section_start_preserva_direcao(controller_section):
+    """Verifica que jump_section_start preserva o sentido do player."""
+    ctrl = controller_section
+    ctrl.rewind()
+    assert ctrl.player.is_rewind is True
+    ctrl.jump_section_start()
+    assert ctrl.player.is_rewind is True
+
+
+def test_jump_section_end_preserva_direcao(controller_section):
+    """Verifica que jump_section_end preserva o sentido do player."""
+    ctrl = controller_section
+    assert ctrl.player.is_rewind is False
+    ctrl.jump_section_end()
+    assert ctrl.player.is_rewind is False
+
+
+def test_remove_section_bloqueia_secao_unica(controller_section):
+    """Verifica que remove_section não remove a última seção restante."""
+    ctrl = controller_section
+    assert len(ctrl.section_manager.sections) == 1
+    ctrl.remove_section()
+    assert len(ctrl.section_manager.sections) == 1
+
+
+def test_remove_section_em_proceed_aterrissa_no_inicio(controller_section):
+    """Verifica que remove_section em proceed aterrissa no primeiro frame da nova seção ativa."""
+    ctrl = controller_section
+    ctrl.player.servant.run()
+    ctrl.player.servant._buffer.wait_task()
+    for _ in range(10):
+        ctrl.read()
+    ctrl.split_section()
+    ctrl.prev_section()
+    ctrl.proceed()
+    ctrl.remove_section()
+    assert len(ctrl.section_manager.sections) == 1
+    ctrl.read()
+    assert ctrl.frame_id == 9
+
+
+def test_remove_section_em_rewind_aterrissa_no_fim(controller_section):
+    """Verifica que remove_section em rewind aterrissa no último frame da nova seção ativa."""
+    ctrl = controller_section
+    ctrl.player.servant.run()
+    ctrl.player.servant._buffer.wait_task()
+    for _ in range(10):
+        ctrl.read()
+    ctrl.split_section()
+    ctrl.rewind()
+    ctrl.remove_section()
+    assert len(ctrl.section_manager.sections) == 1
+    ctrl.read()
+    assert ctrl.frame_id == 8
+
+
+def test_undo_section_restaura_e_posiciona_frame(controller_section):
+    """Verifica que undo_section desfaz a remoção e posiciona o frame."""
+    ctrl = controller_section
+    ctrl.player.servant.run()
+    ctrl.player.servant._buffer.wait_task()
+    for _ in range(10):
+        ctrl.read()
+    ctrl.split_section()
+    assert len(ctrl.section_manager.sections) == 2
+    ctrl.remove_section()
+    assert len(ctrl.section_manager.sections) == 1
+    ctrl.undo_section()
+    assert len(ctrl.section_manager.sections) == 2
+
+
+def test_undo_section_apos_split_retorna_ao_frame_do_split(controller_section):
+    """Verifica que desfazer um split retorna o player exatamente ao frame do corte."""
+    ctrl = controller_section
+    ctrl.player.servant.run()
+    ctrl.player.servant._buffer.wait_task()
+    for _ in range(15):
+        ctrl.read()
+    split_frame = ctrl.frame_id
+    ctrl.split_section()
+    assert len(ctrl.section_manager.sections) == 2
+    ctrl.undo_section()
+    assert len(ctrl.section_manager.sections) == 1
+    ctrl.read()
+    assert ctrl.frame_id == split_frame
+
+
+def test_toggle_preview_alterna_estado(controller_section):
+    """Verifica que toggle_preview alterna o flag is_preview."""
+    ctrl = controller_section
+    assert ctrl.is_preview is False
+    ctrl.toggle_preview()
+    assert ctrl.is_preview is True
+    ctrl.toggle_preview()
+    assert ctrl.is_preview is False
+
+
+def test_toggle_preview_preserva_frame_e_direcao(controller_section):
+    """Verifica que toggle_preview preserva o frame_id e a direção de reprodução."""
+    ctrl = controller_section
+    ctrl.player.servant.run()
+    ctrl.player.servant._buffer.wait_task()
+    for _ in range(10):
+        ctrl.read()
+    ctrl.rewind()
+    active_frame = ctrl.frame_id
+    ctrl.toggle_preview()
+    assert ctrl.player.is_rewind is True
+    ctrl.read()
+    assert ctrl.frame_id == active_frame
+
+
+def test_toggle_preview_desativar_sincroniza_secao_do_frame(controller_section):
+    """Verifica que desativar o preview sincroniza a seção ativa com o frame exibido."""
+    ctrl = controller_section
+    ctrl.player.servant.run()
+    ctrl.player.servant._buffer.wait_task()
+    for _ in range(10):
+        ctrl.read()
+    ctrl.split_section()
+    ctrl.prev_section()
+    assert ctrl.section_manager.current_index == 0
+    ctrl.toggle_preview()
+    ctrl.set_frame(15)
+    ctrl.read()
+    ctrl.toggle_preview()
+    assert ctrl.section_manager.current_index == 1
+
+
+def test_toggle_preview_bloqueia_operacoes_de_secao(controller_section):
+    """Verifica que operações de edição de seção são bloqueadas durante o modo preview."""
+    ctrl = controller_section
+    ctrl.player.servant.run()
+    ctrl.player.servant._buffer.wait_task()
+    for _ in range(10):
+        ctrl.read()
+    ctrl.toggle_preview()
+    ctrl.split_section()
+    assert len(ctrl.section_manager.sections) == 1
+    ctrl.remove_section()
+    assert len(ctrl.section_manager.sections) == 1
+    ctrl.join_section()
+    assert len(ctrl.section_manager.sections) == 1
+
+
+def test_video_controller_section_manager_property(controller_section):
+    """Verifica que a classe base VideoController expõe a propriedade section_manager."""
+    ctrl = controller_section
+    assert ctrl.section_manager is not None
+    assert ctrl.section_manager.current_index == 0

@@ -14,6 +14,8 @@ from aniseek.view.video_command import (
     IncreaseSpeedCommand,
     Invoker,
     JoinSectionCommand,
+    JumpSectionEndCommand,
+    JumpSectionStartCommand,
     NextSectionCommand,
     NextVideoCommand,
     PauseCommand,
@@ -27,6 +29,7 @@ from aniseek.view.video_command import (
     RestoreDelayCommand,
     RewindCommand,
     SplitSectionCommand,
+    TogglePreviewCommand,
     UndoFrameCommand,
     UndoSectionCommand,
 )
@@ -52,6 +55,7 @@ class VideoCon:
         kr = type(self.__key_reader)
         self.__shortcuts = SHORTCUTS.get(kr, PYNPUT_SHORTCUTS)
 
+        self.__last_title: str | None = None
         self.__video_manager = VideoManager(buffersize, log)
         self.__video_controller = VideoController(self.__playlist,
                                                   frames_mapping,
@@ -105,10 +109,30 @@ class VideoCon:
     def _show(self, frame):
         cv2.imshow('videoseq', frame)
 
+    def _update_title(self) -> None:
+        try:
+            frame_id = self.frame_id if self.frame_id is not None else '-'
+            direction_str = '<<' if self.__video_manager.player.is_rewind else '>>'
+            paused_str = ' (PAUSADO)' if self.__video_manager.player.delay == 0 else ''
+            if self.__video_controller.is_preview:
+                title = f'videoseq - [PREVIEW | Frame: {frame_id}] [{direction_str}]{paused_str}'
+            else:
+                sec_man = self.__video_controller.section_manager
+                sec_idx = sec_man.current_index + 1
+                sec_total = len(sec_man.sections)
+                sec = sec_man.current_section
+                title = f'videoseq - [Seção {sec_idx}/{sec_total} | Frames {sec.start}-{sec.end - 1} | Frame: {frame_id}] [{direction_str}]{paused_str}'
+            if title != self.__last_title:
+                cv2.setWindowTitle('videoseq', title)
+                self.__last_title = title
+        except Exception as err:
+            logger.debug(f'_update_title error: {err}')
+
     def show(self, flag, frame):
         if flag is True:
             logger.info(f'exibindo o frame de id {self.frame_id}')
             self._show(frame)
+        self._update_title()
         delay = self.__video_manager.player.delay
         return self.control(self.__key_reader.get_code(delay))
 
@@ -133,6 +157,9 @@ class VideoCon:
         command.set_command('UndoSectionCommand', UndoSectionCommand(video_controller))
         command.set_command('JoinSectionCommand', JoinSectionCommand(video_controller))
         command.set_command('RemoveSectionCommand', RemoveSectionCommand(video_controller))
+        command.set_command('JumpSectionStartCommand', JumpSectionStartCommand(video_controller))
+        command.set_command('JumpSectionEndCommand', JumpSectionEndCommand(video_controller))
+        command.set_command('TogglePreviewCommand', TogglePreviewCommand(video_controller))
 
     def control(self, key):
         shortcut_key = self.__shortcuts.get(key, key)
