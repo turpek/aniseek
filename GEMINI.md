@@ -9,7 +9,9 @@
 - **Descrição curta:** Biblioteca em Python focada na leitura e navegação precisa frame a frame de vídeos. Utiliza uma arquitetura de buffers concorrentes em threads paralelas (`VideoBufferRight` e `VideoBufferLeft`) para possibilitar avanço (`proceed`) e retrocesso (`rewind`) instantâneos com cache cooperativo em memória.
 - **Motivação:** Aplicações de visão computacional, ferramentas de rotulagem e projetos de processamento gráfico (como o [`anifuse`](https://github.com/turpek/anifuse)) exigem leitura temporal de frames para frente e para trás, além de fatiamento (`start`, `end`, `step`) e listas arbitrárias de frames sem lentidão de decodificação.
 - **Papel na Arquitetura:**
-  - **`aniseek` (Core Engine):** Fornece os leitores especializados (`ForwardReader`, `ReverseReader`) e o leitor centralizado bidirecional (`VideoReader`), além das estruturas de mapeamento (`FrameMapper`) e buffers (`BufferRight`, `BufferLeft`).
+  - **`aniseek.core` (Motor de Leitura):** Fornece os leitores especializados (`ForwardReader`, `ReverseReader`) e o leitor bidirecional (`VideoReader`), estruturas de mapeamento (`FrameMapper`), buffers concorrentes (`VideoBufferRight`, `VideoBufferLeft`) e interface de backend de decodificação (`IFrameSource`, `OpenCVVideoSource`).
+  - **`aniseek.editing` (Edição e Gerenciamento):** Gestão de seções (`SectionManager`), histórico (`memento`), lixeira de descarte (`Trash`), controle de playlist (`Playlist`) e reprodutor (`PlayerControl`).
+  - **`aniseek.view` (Interface e Comandos):** Apresentação visual e interação via OpenCV GUI (`VideoCon`), mapeamento de comandos (`video_command`) e controle de aplicação (`VideoController`).
 
 ---
 
@@ -19,7 +21,8 @@
 - **Leitura Direta Otimizada (`ForwardReader`):** Leitura frame a frame em ordem crescente com buffer único concorrente.
 - **Leitura Reversa Otimizada (`ReverseReader`):** Leitura frame a frame em ordem decrescente com buffer único concorrente.
 - **Leitura Bidirecional Cooperativa (`VideoReader`):** Alternância instantânea de sentido (`proceed` / `rewind`) utilizando cache em memória entre buffers.
-- **Fatiamento Flexível (`slice`):** Suporte nativo a `start`, `end` e `step`, pulando frames intermediários via `cap.grab()` sem decodificação pesada.
+- **Desacoplamento de Backend (`IFrameSource`):** Interface abstrata para decodificação de frames (com implementação inicial `OpenCVVideoSource`).
+- **Fatiamento Flexível (`slice`):** Suporte nativo a `start`, `end` e `step`, pulando frames intermediários via `grab()` sem decodificação pesada.
 - **Amostragem Arbitrária (`frames: list[int]`):** Suporte a passar listas explícitas de IDs de frames para o `FrameMapper`.
 - **Indicação de Término de Task (`is_task_complete`):** Propriedade conveniente para saber quando a leitura do slice ou lote terminou.
 
@@ -48,21 +51,44 @@
 aniseek/
 ├── src/
 │   └── aniseek/
-│       ├── buffer.py          # Estrutura base de fila dupla (primary deque + secondary Queue)
-│       ├── buffer_right.py    # Buffer concorrente para avanço (+1)
-│       ├── buffer_left.py     # Buffer concorrente para retrocesso (-1)
-│       ├── frame_mapper.py    # Mapeamento e indexação de frames válidos com bisect
-│       ├── reader.py          # Thread de leitura com VideoCapture (cap.read vs cap.grab)
-│       ├── player_control.py  # Controlador histórico de reprodução e edição
-│       ├── video_controller.py# Fachada antiga de controle de aplicação
-│       └── video.py           # Fachada legada com acoplamento a OpenCV GUI
-├── tests/                     # Suíte completa de testes unitários e de integração
-└── scratch/                   # Scripts temporários e diagnósticos
-```
-│   ├── video_controller.py# Fachada antiga de controle de aplicação
-│   └── video.py           # Fachada legada com acoplamento a OpenCV GUI
-├── tests/                 # Suíte completa de testes unitários e de integração
-└── scratch/               # Scripts temporários e diagnósticos
+│       ├── core/                      # Motor de leitura e bufferização temporal
+│       │   ├── interfaces/            # IFrameSource, IVideoBuffer
+│       │   ├── sources/               # OpenCVVideoSource (e futuros backends)
+│       │   ├── buffer.py              # Buffer base de fila dupla
+│       │   ├── buffer_right.py        # Buffer concorrente para avanço (+1)
+│       │   ├── buffer_left.py         # Buffer concorrente para retrocesso (-1)
+│       │   ├── channel.py             # Primitiva de sincronização entre threads
+│       │   ├── frame_mapper.py        # Mapeamento e indexação de frames com bisect
+│       │   ├── reader.py              # Thread de leitura com IFrameSource (read vs grab)
+│       │   └── video_reader.py        # BaseVideoReader, ForwardReader, ReverseReader, VideoReader
+│       │
+│       ├── editing/                   # Lógica de edição, cortes, histórico e gerenciamento
+│       │   ├── interfaces/            # IMemento, IOriginator, ISectionAdapter, IDataReader...
+│       │   ├── adapter.py             # SectionSplitProcess, FakeSectionAdapter...
+│       │   ├── manager.py             # VideoManager (orquestra core + editing)
+│       │   ├── memento.py             # Caretaker, SectionOriginator, TrashOriginator
+│       │   ├── player_control.py      # PlayerControl (coordena avanço/recuo e delay)
+│       │   ├── playlist.py            # Playlist de arquivos de mídia
+│       │   ├── readers.py             # JSONReader, JSONWriter
+│       │   ├── section.py             # VideoSection, SectionManager, SectionWrapper
+│       │   ├── section_service.py     # SectionService para persistência de seções
+│       │   ├── template.py            # TemplateFactory
+│       │   ├── trash.py               # Lixeira de frames descartados
+│       │   └── utils.py               # FrameMementoHandler, FrameStack, VideoInfo...
+│       │
+│       ├── view/                      # Interface gráfica (OpenCV GUI) e comandos
+│       │   ├── interfaces/            # Command
+│       │   ├── video.py               # VideoCon (janela OpenCV, imshow, loop)
+│       │   ├── video_command.py       # Invoker e comandos de controle
+│       │   └── video_controller.py    # VideoController (conecta view ao VideoManager)
+│       │
+│       ├── custom_exceptions.py       # Exceções compartilhadas do pacote
+│       ├── time_utils.py              # Utilitários temporais (timestamp <-> frames)
+│       └── __init__.py                # Fachada pública reexportando leitores e utilitários
+│
+├── tests/                             # Suíte completa de testes unitários e de integração
+├── docs/                              # Documentação técnica detalhada
+└── scratch/                           # Scripts temporários e diagnósticos
 ```
 
 ---
@@ -142,3 +168,9 @@ aniseek/
 ### 7.3. Otimização por `FrameMapper`
 - O `FrameMapper` indexa os frames válidos em um array ordenado em C (`array('l')`).
 - Na leitura em background: se `frame_id in mapping_frames`, executa `cap.read()`; se não, executa `cap.grab()` (avanço rápido sem carga de CPU).
+
+### 7.4. Desacoplamento de Backend de Decodificação (`IFrameSource`)
+- A decodificação e extração de frames é isolada pela interface abstrata `IFrameSource`.
+- `OpenCVVideoSource` é a implementação padrão baseada em OpenCV (`cv2.VideoCapture`).
+- O core (`reader_task`, buffers, `VideoReader`) consome estritamente o contrato da interface (`frame_count`, `fps`, `seek`, `read`, `grab`, `is_opened`, `release`), eliminando totalmente `hasattr`/`getattr` dinâmicos ou dependência direta de `cv2` no motor de leitura.
+

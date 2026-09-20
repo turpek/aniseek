@@ -18,7 +18,7 @@ Todas as três classes herdam de **`BaseVideoReader`**, compartilhando a mesma i
 
 ```python
 BaseVideoReader(
-    video: str | Path | cv2.VideoCapture,
+    video: str | Path,
     *,
     start: int | float | str | None = None,
     end: int | float | str | None = None,
@@ -32,7 +32,7 @@ BaseVideoReader(
 
 | Parâmetro | Tipo | Padrão | Descrição |
 | :--- | :--- | :--- | :--- |
-| `video` | `str \| Path \| cv2.VideoCapture` | *Obrigatório* | Caminho para o arquivo de vídeo ou uma instância existente de `cv2.VideoCapture`. |
+| `video` | `str \| Path` | *Obrigatório* | Caminho para o arquivo de vídeo. Instancia internamente o `OpenCVVideoSource`. |
 | `start` | `int \| float \| str \| None` | `None` (0) | Ponto inicial: aceita índice de frame (`int`), segundos (`float`) ou timestamp (`str` ex: `"01:30"`). Omitir inicia no primeiro frame (`0`). |
 | `end` | `int \| float \| str \| None` | `None` (total) | Ponto final limite: aceita índice de frame (`int`), segundos (`float`) ou timestamp (`str` ex: `"02:45"`). Omitir lê até o último frame do vídeo. |
 | `step` | `int` | `1` | Intervalo entre frames amostrados (pula intermediários via `cap.grab()`). |
