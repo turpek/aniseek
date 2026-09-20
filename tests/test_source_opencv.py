@@ -64,3 +64,23 @@ def test_opencv_source_context_manager(tmp_path, monkeypatch):
         assert source.is_opened() is True
 
     assert source.is_opened() is False
+
+
+def test_opencv_source_adjusts_inflated_frame_count(tmp_path, monkeypatch):
+    """Ajusta frame_count quando o container reporta mais frames do que os realmente decodificáveis."""
+    dummy_file = tmp_path / "video.mp4"
+    dummy_file.touch()
+
+    class InflatedVideoCapture(MyVideoCapture):
+        def grab(self) -> bool:
+            if self.index >= 498:
+                return False
+            self.index += 1
+            return True
+
+    mock_cap = InflatedVideoCapture(isopened=True, frame_count=500)
+    monkeypatch.setattr("cv2.VideoCapture", lambda _: mock_cap)
+
+    source = OpenCVVideoSource(dummy_file)
+    assert source.frame_count == 498
+    assert mock_cap.index == 0

@@ -19,6 +19,21 @@ class OpenCVVideoSource(IFrameSource):
 
         self._frame_count = int(self.cap.get(cv2.CAP_PROP_FRAME_COUNT))
         self._fps = float(self.cap.get(cv2.CAP_PROP_FPS) or 0.0)
+        self._validate_frame_count()
+
+    def _validate_frame_count(self) -> None:
+        """Validate and adjust frame_count to match actual decodable frames."""
+        if self._frame_count <= 0:
+            return
+
+        self.cap.set(cv2.CAP_PROP_POS_FRAMES, self._frame_count - 1)
+        if not self.cap.grab():
+            while self._frame_count > 0:
+                self._frame_count -= 1
+                self.cap.set(cv2.CAP_PROP_POS_FRAMES, self._frame_count - 1)
+                if self.cap.grab():
+                    break
+        self.cap.set(cv2.CAP_PROP_POS_FRAMES, 0)
 
     @property
     def frame_count(self) -> int:
