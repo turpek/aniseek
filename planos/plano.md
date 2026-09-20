@@ -11,6 +11,7 @@ Este documento centraliza todos os objetivos arquiteturais, otimizações estrut
 - [x] 3. Sistema cooperativo de duplo buffer concorrente (`VideoBufferRight` & `VideoBufferLeft`).
 - [x] 4. Módulo de input desacoplado com `PynputKeyReader` (suporte a `Ctrl`), `CV2KeyReader` (fallback) e atalhos padronizados.
 - [ ] 5. **Bugfix no `SectionManager.remove_section` / `VideoManager.create`:** Falha `AttributeError: 'NoneType' object has no attribute '_calculate_mapping'` ao remover seção quando pausado (`Ctrl + x`).
+- [ ] 6. **Refatoração e Usabilidade do Subsistema de Seções & Modo Preview da Montagem Final.**
 
 ---
 
@@ -112,7 +113,7 @@ A falha decorre da seguinte sequência de operações:
 Há dois pontos fundamentais de regra de negócio a serem formalizados:
 
 1. **Permissão de Remoção da Última Seção:**
-   * **Abordagem A (Proibitiva):** Não permitir a remoção da última seção do vídeo (isto é, um vídeo deve ter no mínimo uma seção ativa). Caso o usuário tente remover com apenas 1 seção restante, o método retorna `False` e emite um log informando que a última seção não pode ser removida.
+   * **Abordagem A (Proibitiva - Recomendada):** Não permitir a remoção da última seção do vídeo (isto é, um vídeo deve ter no mínimo uma seção ativa). Caso o usuário tente remover com apenas 1 seção restante, o método retorna `False` e emite um log/aviso informando que a última seção não pode ser removida.
    * **Abordagem B (Permissiva):** Permitir a remoção completa. Neste caso, o `VideoManager` e o `VideoController` precisam entrar em um estado de "vídeo vazio / sem seções válidas", onde nenhum frame é exibido e novas operações de divisão/leitura são desativadas ou tratadas com segurança.
 
 2. **Guard Clauses Defensivas em `SectionManager`:**
@@ -132,3 +133,80 @@ Há dois pontos fundamentais de regra de negócio a serem formalizados:
   - Executar o script `scratch/test_real_video.py`, pausar com a tecla `espaço` e acionar `Ctrl + x`, garantindo que não ocorra crash.
 - [ ] **Verificação de Qualidade:**
   - Executar a suíte de testes com `uv run pytest` e checagem de lint/formatação (`ruff` / `autopep8`).
+
+---
+
+### Task 6: Refatoração de Usabilidade das Seções e Modo Preview da Montagem Final
+
+Esta tarefa visa transformar a interação com o subsistema de seções em uma experiência ergonômica, previsível e sem atritos de interface, resolvendo assimetrias de comandos e implementando o modo de visualização global da montagem.
+
+#### 📋 Sub-lista de Objetivos da Tarefa 6
+
+- [ ] **6.1. Dividir Seção (`Split — Ctrl + s`) Sensível ao Sentido do Buffer:**
+  - Aterrissar o cursor no sentido do movimento (`proceed` $\rightarrow$ início da seção da direita; `rewind` $\rightarrow$ fim da seção da esquerda).
+  - Bloquear divisão inválida nos limites extremos (`frame_id == start` ou `frame_id == end - 1`) com feedback amigável.
+- [ ] **6.2. Juntar Seções (`Join — Ctrl + j`) Contextual e Bidirecional:**
+  - Permitir união sem necessidade de navegar manualmente para a seção seguinte.
+  - Regra de ponta automática (primeira junta com próxima; última junta com anterior).
+  - Regra de meio automática orientada pelo sentido da reprodução (`proceed` $\rightarrow$ direita; `rewind` $\rightarrow$ esquerda).
+  - Operação determinística e sem timers.
+- [ ] **6.3. Navegação entre Seções (`Next / Prev — Ctrl + d / Ctrl + a`) no Frame Mais Próximo:**
+  - `Ctrl + d`: Aterrissa no início da próxima seção (`start`).
+  - `Ctrl + a`: Aterrissa no fim da seção anterior (`end - 1`).
+  - Atalhos universais `Home` e `End` para saltar para o início e fim da seção atual.
+- [ ] **6.4. Feedback Visual Imediato e Correção de Congelamento na Pausa com Espaço:**
+  - Chamar `set_read()` em todas as operações de seção para destravar o `no_read()`.
+  - Inicializar os buffers com `servant.run()` no `VideoManager.create()`.
+  - Atualização dinâmica do título da janela OpenCV (`videoseq - [Seção X/Y | Frame A/B] (PAUSADO)`).
+- [ ] **6.5. Modo Preview da Montagem Final (`Rough Cut Preview` — Tecla `v`):**
+  - Implementar "lente de visualização" da união de todas as seções ativas (`get_preview_mapping()`), ocultando trechos removidos e lixeira.
+  - Preservação estrita de estado: `frame_id`, direção, estado de pausa e velocidade permanecem 100% inalterados ao alternar `v`.
+  - Sincronização da seção ativa com a seção do frame atual ao desativar o Preview.
+
+---
+
+#### Detalhamento Técnico dos Pontos da Tarefa 6
+
+##### 1. Dividir Seção (`Split — Ctrl + s`) Sensível ao Sentido do Buffer
+* **Comportamento Atual:** A divisão gera duas seções e joga o cursor compulsoriamente no início da segunda metade, ignorando se o usuário estava rebobinando ou avançando.
+* **Comportamento Esperado:**
+  * Se o usuário estava em **`proceed` (+1)**: o cursor aterrissa no **primeiro frame da seção da direita** (`frame_id + 1`), dando continuidade ao fluxo natural de avanço.
+  * Se o usuário estava em **`rewind` (-1)**: o cursor aterrissa no **último frame da seção da esquerda** (`frame_id`), permitindo continuar inspecionando para trás.
+  * **Validação de Limites:** Se o usuário tentar dividir no primeiro frame (`frame_id == start`) ou no último (`frame_id == end - 1`), a operação deve ser rejeitada com aviso explicativo, prevenindo seções de tamanho zero ou corrupção de ranges.
+
+##### 2. Juntar Seções (`Join — Ctrl + j`) Contextual e Bidirecional (Sem Timer)
+* **Comportamento Atual:** O método só une com a seção anterior em `self._left`. Na Seção 1, o comando falha e exige que o usuário avance para a Seção 2 antes de juntar.
+* **Comportamento Esperado:**
+  * **Ponta Esquerda (Seção 1):** Junta automaticamente com a próxima seção (direita).
+  * **Ponta Direita (Última Seção):** Junta automaticamente com a seção anterior (esquerda).
+  * **Seções Intermediárias:** A direção do player dita a união:
+    * Se em `proceed` $\rightarrow$ une com a próxima seção (direita).
+    * Se em `rewind` $\rightarrow$ une com a seção anterior (esquerda).
+  * Elimina timeouts, timers e confirmações lentas, mantendo resposta imediata.
+
+##### 3. Navegação entre Seções (`Next / Prev — Ctrl + d / Ctrl + a`) no Frame Mais Próximo
+* **Comportamento Atual:** `Ctrl + a` joga o cursor no frame 0 da seção anterior, distante do ponto de corte.
+* **Comportamento Esperado:**
+  * **`Ctrl + d` (Próxima):** Salta para o **início** da próxima seção (`start`).
+  * **`Ctrl + a` (Anterior):** Salta para o **fim** da seção anterior (`end - 1`), mantendo o usuário na fronteira imediata do corte.
+  * **Navegação de Extremos:**
+    * Tecla `Home`: Salta para o início da seção atual (`start`).
+    * Tecla `End`: Salta para o fim da seção atual (`end - 1`).
+
+##### 4. Feedback Visual Imediato e Correção de Congelamento na Pausa com Espaço
+* **Comportamento Atual:** Durante pause ativo (`delay = 0`), a flag `no_read()` barra novas leituras, e os buffers recriados no `create()` não são iniciados via `run()`. A tela permanece congelada no frame antigo.
+* **Comportamento Esperado:**
+  * Todas as operações de seção (`next_section`, `prev_section`, `split_section`, `join_section`, `remove_section`) devem invocar `self.__player.set_read()`.
+  * `VideoManager.create()` deve disparar `self.servant.run()` e garantir que o primeiro frame esteja pronto.
+  * O título da janela OpenCV deve ser atualizado dinamicamente via `cv2.setWindowTitle`:
+    ```text
+    videoseq - [Seção 2/3 | Frames 534-1200 | Frame Atual: 620] (PAUSADO)
+    ```
+
+##### 5. Modo Preview da Montagem Final (`Rough Cut Preview` — Tecla `v`)
+* **Conceito:**
+  * Atua como uma lente de visualização global que monta a linha do tempo contínua de todas as seções ativas (`_left` + `_right`), ocultando automaticamente seções deletadas e frames no `Trash`.
+* **Preservação de Estado:**
+  * Alternar a tecla `v` não altera: `frame_id`, direção (`proceed`/`rewind`), estado de pausa (`espaço`/`b`) ou velocidade de reprodução (`delay`).
+* **Sincronização de Seção ao Sair:**
+  * Se o usuário percorrer o vídeo em modo Preview e desativá-lo em um frame de outra seção, essa seção é automaticamente promovida a seção ativa no topo de `_right`.
