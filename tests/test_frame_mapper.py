@@ -1,9 +1,9 @@
 import pytest
 from pytest import fixture, raises
 
+from aniseek.core.frame_mapper import FrameMapper
+from aniseek.core.interfaces.buffer import IFakeVideoBuffer
 from aniseek.custom_exceptions import InvalidFrameIdError
-from aniseek.frame_mapper import FrameMapper
-from aniseek.interfaces import IFakeVideoBuffer
 
 
 @fixture

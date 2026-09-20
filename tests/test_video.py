@@ -4,25 +4,25 @@ from unittest.mock import patch
 import pytest
 from pytest import fixture
 
-from aniseek.video import VideoCon
+from aniseek.view.video import VideoCon
 from tests.uteis import MyVideoCapture
 
 
 @fixture
 def mycap():
-    with patch('aniseek.sources.opencv.cv2.VideoCapture', return_value=MyVideoCapture(frame_count=300)) as mock:
+    with patch('aniseek.core.sources.opencv.cv2.VideoCapture', return_value=MyVideoCapture(frame_count=300)) as mock:
         yield mock
 
 
 @fixture
 def creating_window():
-    with patch('aniseek.video.VideoCon._VideoCon__creating_window', return_value=None) as mock:
+    with patch('aniseek.view.video.VideoCon._VideoCon__creating_window', return_value=None) as mock:
         yield mock
 
 
 @fixture
 def myvideo(mycap, creating_window):
-    with patch('aniseek.manager.SectionManager.get_mapping', return_value=list(range(300))):
+    with patch('aniseek.editing.section.SectionManager.get_mapping', return_value=list(range(300))):
         video = VideoCon('model.mp4')
         yield video
         video.join()

@@ -1,8 +1,8 @@
 import json
 from pathlib import Path
 
-from aniseek.adapter import ISectionManagerAdapter
-from aniseek.readers import JSONReader
+from aniseek.editing.interfaces.section import ISectionManagerAdapter
+from aniseek.editing.readers import JSONReader
 
 
 class TemplateFactory:

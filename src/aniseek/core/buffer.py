@@ -42,7 +42,7 @@ from threading import Event, Lock, Semaphore
 
 from loguru import logger
 
-from aniseek.channel import Channel1
+from aniseek.core.channel import Channel1
 from aniseek.custom_exceptions import VideoBufferError
 
 

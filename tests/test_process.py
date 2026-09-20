@@ -2,9 +2,9 @@ from collections import deque
 
 from pytest import raises
 
-from aniseek.adapter import FakeSectionAdapter, SectionSplitProcess
 from aniseek.custom_exceptions import SectionSplitProcessError
-from aniseek.section import VideoSection
+from aniseek.editing.adapter import FakeSectionAdapter, SectionSplitProcess
+from aniseek.editing.section import VideoSection
 
 FAKES = {
     'SECTION_IDS': [1, 2, 4],

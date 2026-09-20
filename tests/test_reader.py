@@ -5,9 +5,9 @@ from threading import Semaphore
 import numpy as np
 import pytest
 
-from aniseek.buffer import FakeBuffer
-from aniseek.interfaces.source import IFrameSource
-from aniseek.reader import reader_task
+from aniseek.core.buffer import FakeBuffer
+from aniseek.core.interfaces.source import IFrameSource
+from aniseek.core.reader import reader_task
 
 
 class FakeFrameSource(IFrameSource):

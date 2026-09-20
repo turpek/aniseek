@@ -3,11 +3,11 @@ from __future__ import annotations
 from collections import deque
 from typing import TYPE_CHECKING
 
-from aniseek.frame_mapper import FrameMapper
-from aniseek.interfaces import IMemento, IOriginator
+from aniseek.core.frame_mapper import FrameMapper
+from aniseek.editing.interfaces.memento import IMemento, IOriginator
 
 if TYPE_CHECKING:
-    from aniseek.section import SectionWrapper
+    from aniseek.editing.section import SectionWrapper
 
 
 class TrashMemento(IMemento):

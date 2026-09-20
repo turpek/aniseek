@@ -2,7 +2,7 @@ from collections import deque
 from pathlib import Path
 
 from aniseek.custom_exceptions import PlaylistError
-from aniseek.utils import VideoInfo
+from aniseek.editing.utils import VideoInfo
 
 
 class Playlist:

@@ -1,8 +1,11 @@
 from pathlib import Path
 
-from aniseek.adapter import JSONSectionManagerAdapter, JSONSectionSave
-from aniseek.section import SectionManager
-from aniseek.template import SectionManagerProcessFactory, TemplateFactory
+from aniseek.editing.adapter import JSONSectionManagerAdapter, JSONSectionSave
+from aniseek.editing.section import SectionManager
+from aniseek.editing.template import (
+    SectionManagerProcessFactory,
+    TemplateFactory,
+)
 
 
 class SectionService:

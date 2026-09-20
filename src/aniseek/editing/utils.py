@@ -6,19 +6,19 @@ from typing import TYPE_CHECKING
 
 from numpy import ndarray
 
+from aniseek.core.interfaces.source import IFrameSource
 from aniseek.custom_exceptions import (
     FrameStackError,
     FrameWrapperError,
     SimpleStackError,
 )
-from aniseek.interfaces import IMementoHandler
-from aniseek.interfaces.source import IFrameSource
-from aniseek.memento import Caretaker
+from aniseek.editing.interfaces.memento import IMementoHandler
+from aniseek.editing.memento import Caretaker
 
 if TYPE_CHECKING:
-    from aniseek.memento import SectionOriginator, TrashOriginator
-    from aniseek.section import VideoSection
-    from aniseek.trash import Trash
+    from aniseek.editing.memento import SectionOriginator, TrashOriginator
+    from aniseek.editing.section import VideoSection
+    from aniseek.editing.trash import Trash
 
 
 class SimpleStack:

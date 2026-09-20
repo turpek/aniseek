@@ -5,20 +5,20 @@ import numpy as np
 import pytest
 from pytest import fixture
 
-from aniseek.buffer_left import VideoBufferLeft
-from aniseek.buffer_right import VideoBufferRight
-from aniseek.frame_mapper import FrameMapper
-from aniseek.manager import VideoManager
-from aniseek.player_control import PlayerControl
-from aniseek.playlist import Playlist
-from aniseek.trash import Trash
-from aniseek.video_command import (
+from aniseek.core.buffer_left import VideoBufferLeft
+from aniseek.core.buffer_right import VideoBufferRight
+from aniseek.core.frame_mapper import FrameMapper
+from aniseek.editing.manager import VideoManager
+from aniseek.editing.player_control import PlayerControl
+from aniseek.editing.playlist import Playlist
+from aniseek.editing.trash import Trash
+from aniseek.view.video_command import (
     ProceesCommand,
     RemoveFrameCommand,
     RewindCommand,
     UndoFrameCommand,
 )
-from aniseek.video_controller import FakeVideoController as VideoController
+from aniseek.view.video_controller import FakeVideoController as VideoController
 from tests.uteis import MyVideoCapture
 
 
@@ -36,8 +36,8 @@ def mycap():
 def video(mycap, request):
     frames_mapping, buffersize, frame_count, log = request.param
     log = False
-    with patch('aniseek.sources.opencv.cv2.VideoCapture', return_value=MyVideoCapture()) as _:
-        with patch('aniseek.manager.SectionManager.get_mapping', return_value=frames_mapping) as _:
+    with patch('aniseek.core.sources.opencv.cv2.VideoCapture', return_value=MyVideoCapture()) as _:
+        with patch('aniseek.editing.section.SectionManager.get_mapping', return_value=frames_mapping) as _:
             manager = VideoManager(buffersize, log)
             playlist = Playlist(['video-01.mp4'])
             video = VideoController(playlist, frames_mapping, manager)
@@ -900,7 +900,6 @@ def test_UndoFrameCommand_recuperando_o_frame_do_50_com_servant_VideoBufferRight
 
 @pytest.mark.parametrize('video', [(list(range(100)), 25, 100, False)], indirect=True)
 def test_player_control_simulando_o_bug_ao_remover_o_1o_frame(video):
-
     """
     ### Descrição do Problema
 
@@ -950,7 +949,6 @@ def test_player_control_simulando_o_bug_ao_remover_o_1o_frame(video):
 
 @pytest.mark.parametrize('video', [(list(range(100)), 25, 100, False)], indirect=True)
 def test_player_control_simulando_o_bug_ao_remover_o_1o_frame_versao_2(video):
-
     """
     ### Descrição do Problema
 

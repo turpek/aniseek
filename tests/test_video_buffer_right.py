@@ -6,9 +6,9 @@ import numpy as np
 import pytest
 from pytest import fixture, raises
 
-from aniseek.buffer_right import VideoBufferRight
+from aniseek.core.buffer_right import VideoBufferRight
+from aniseek.core.frame_mapper import FrameMapper
 from aniseek.custom_exceptions import VideoBufferError
-from aniseek.frame_mapper import FrameMapper
 
 
 def lote(start, end, step=1):

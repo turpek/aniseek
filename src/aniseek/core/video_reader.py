@@ -8,10 +8,10 @@ from typing import Iterator
 
 from numpy import ndarray
 
-from aniseek.buffer_left import VideoBufferLeft
-from aniseek.buffer_right import VideoBufferRight
-from aniseek.frame_mapper import FrameMapper
-from aniseek.sources.opencv import OpenCVVideoSource
+from aniseek.core.buffer_left import VideoBufferLeft
+from aniseek.core.buffer_right import VideoBufferRight
+from aniseek.core.frame_mapper import FrameMapper
+from aniseek.core.sources.opencv import OpenCVVideoSource
 from aniseek.time_utils import resolve_frame_range
 
 

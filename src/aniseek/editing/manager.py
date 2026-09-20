@@ -2,15 +2,15 @@ from array import array
 from pathlib import Path
 from threading import Semaphore
 
-from aniseek.buffer_left import VideoBufferLeft
-from aniseek.buffer_right import VideoBufferRight
-from aniseek.frame_mapper import FrameMapper
-from aniseek.player_control import PlayerControl
-from aniseek.section import SectionManager
-from aniseek.section_service import SectionService
-from aniseek.sources.opencv import OpenCVVideoSource
-from aniseek.trash import Trash
-from aniseek.utils import VideoInfo
+from aniseek.core.buffer_left import VideoBufferLeft
+from aniseek.core.buffer_right import VideoBufferRight
+from aniseek.core.frame_mapper import FrameMapper
+from aniseek.core.sources.opencv import OpenCVVideoSource
+from aniseek.editing.player_control import PlayerControl
+from aniseek.editing.section import SectionManager
+from aniseek.editing.section_service import SectionService
+from aniseek.editing.trash import Trash
+from aniseek.editing.utils import VideoInfo
 
 
 class VideoManager:

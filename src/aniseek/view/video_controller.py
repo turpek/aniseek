@@ -1,7 +1,7 @@
 from loguru import logger
 
-from aniseek.manager import VideoManager
-from aniseek.playlist import Playlist
+from aniseek.editing.manager import VideoManager
+from aniseek.editing.playlist import Playlist
 
 fake = {
     'SECTIONS':

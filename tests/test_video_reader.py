@@ -2,7 +2,12 @@ from __future__ import annotations
 
 import pytest
 
-from aniseek.video_reader import Direction, ForwardReader, ReverseReader, VideoReader
+from aniseek.core.video_reader import (
+    Direction,
+    ForwardReader,
+    ReverseReader,
+    VideoReader,
+)
 from tests.uteis import MyVideoCapture
 
 
@@ -14,7 +19,7 @@ def mock_video_capture():
 @pytest.fixture
 def synthetic_cap(monkeypatch, mock_video_capture):
     monkeypatch.setattr(
-        "aniseek.sources.opencv.cv2.VideoCapture",
+        "aniseek.core.sources.opencv.cv2.VideoCapture",
         lambda _: mock_video_capture,
     )
     return "video.mp4"

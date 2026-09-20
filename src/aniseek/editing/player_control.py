@@ -1,9 +1,9 @@
 from loguru import logger
 from numpy import ndarray
 
-from aniseek.buffer_left import VideoBufferLeft
-from aniseek.buffer_right import VideoBufferRight
-from aniseek.interfaces import IVideoBuffer
+from aniseek.core.buffer_left import VideoBufferLeft
+from aniseek.core.buffer_right import VideoBufferRight
+from aniseek.core.interfaces.buffer import IVideoBuffer
 
 
 class PlayerControl:

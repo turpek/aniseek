@@ -8,12 +8,15 @@ from typing import TYPE_CHECKING
 from loguru import logger
 
 from aniseek.custom_exceptions import SectionSplitProcessError
-from aniseek.interfaces import ISectionAdapter, ISectionManagerAdapter
-from aniseek.readers import JSONReader, JSONWriter
-from aniseek.utils import partition_by_value
+from aniseek.editing.interfaces.section import (
+    ISectionAdapter,
+    ISectionManagerAdapter,
+)
+from aniseek.editing.readers import JSONReader, JSONWriter
+from aniseek.editing.utils import partition_by_value
 
 if TYPE_CHECKING:
-    from aniseek.section import VideoSection
+    from aniseek.editing.section import VideoSection
 
 
 class SectionUnionAdapter(ISectionAdapter):
