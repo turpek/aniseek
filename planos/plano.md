@@ -11,7 +11,8 @@ Este documento centraliza todos os objetivos arquiteturais, otimizações estrut
 - [x] 3. Sistema cooperativo de duplo buffer concorrente (`VideoBufferRight` & `VideoBufferLeft`).
 - [x] 4. Módulo de input desacoplado com `PynputKeyReader` (suporte a `Ctrl`), `CV2KeyReader` (fallback) e atalhos padronizados.
 - [ ] 5. **Bugfix no `SectionManager.remove_section` / `VideoManager.create`:** Falha `AttributeError: 'NoneType' object has no attribute '_calculate_mapping'` ao remover seção quando pausado (`Ctrl + x`).
-- [ ] 6. **Refatoração e Usabilidade do Subsistema de Seções & Modo Preview da Montagem Final.**
+- [ ] 6. **Refatoração de Usabilidade das Seções & Modo Preview da Montagem Final (UX / Funcional).**
+- [ ] 7. **Refatoração Arquitetural e Manutenibilidade do Subsistema de Seções (Clean Code / Arquitetura Interna).**
 
 ---
 
@@ -110,12 +111,8 @@ A falha decorre da seguinte sequência de operações:
 
 #### 3. Decisões de Projeto e Regras de Negócio
 
-Há dois pontos fundamentais de regra de negócio a serem formalizados:
-
 1. **Permissão de Remoção da Última Seção:**
-   * **Abordagem A (Proibitiva - Recomendada):** Não permitir a remoção da última seção do vídeo (isto é, um vídeo deve ter no mínimo uma seção ativa). Caso o usuário tente remover com apenas 1 seção restante, o método retorna `False` e emite um log/aviso informando que a última seção não pode ser removida.
-   * **Abordagem B (Permissiva):** Permitir a remoção completa. Neste caso, o `VideoManager` e o `VideoController` precisam entrar em um estado de "vídeo vazio / sem seções válidas", onde nenhum frame é exibido e novas operações de divisão/leitura são desativadas ou tratadas com segurança.
-
+   * **Abordagem Proibitiva (Recomendada):** Não permitir a remoção da última seção do vídeo (um vídeo deve ter no mínimo uma seção ativa). Caso o usuário tente remover com apenas 1 seção restante, o método retorna `False` e emite um log informativo.
 2. **Guard Clauses Defensivas em `SectionManager`:**
    * Métodos como `load_mementos_frames` e `store_mementos_frames` devem checar se `self._right.top is not None` antes de tentar calcular mappings ou carregar mementos de frames.
 
@@ -124,21 +121,19 @@ Há dois pontos fundamentais de regra de negócio a serem formalizados:
 #### 4. Escopo da Investigação e Plano de Ação
 
 - [ ] **Reprodução em Teste Unitário:**
-  - Criar um teste dedicado em `tests/test_section.py` e/ou `tests/test_controller.py` reproduzindo a chamada de `remove_section()` quando resta apenas 1 seção na pilha.
+  - Criar teste dedicado em `tests/test_section.py` simulando `remove_section()` com apenas 1 seção na pilha.
 - [ ] **Implementação das Guard Clauses:**
   - Adicionar validação em `SectionManager.load_mementos_frames()` e `store_mementos_frames()` para lidar de forma segura com `self._right.empty()`.
-- [ ] **Definição e Aplicação da Regra de Remoção:**
-  - Aplicar a política acordada em `SectionManager.remove_section()` e `VideoController.remove_section()`.
+- [ ] **Aplicação da Regra de Bloqueio da Última Seção:**
+  - Bloquear remoção quando `len == 1` em `SectionManager.remove_section()`.
 - [ ] **Validação com o Vídeo Real:**
-  - Executar o script `scratch/test_real_video.py`, pausar com a tecla `espaço` e acionar `Ctrl + x`, garantindo que não ocorra crash.
-- [ ] **Verificação de Qualidade:**
-  - Executar a suíte de testes com `uv run pytest` e checagem de lint/formatação (`ruff` / `autopep8`).
+  - Executar o script `scratch/test_real_video.py`, pausar com a tecla `espaço` e acionar `Ctrl + x`, garantindo encerramento sem crash.
 
 ---
 
-### Task 6: Refatoração de Usabilidade das Seções e Modo Preview da Montagem Final
+### Task 6: Refatoração de Usabilidade das Seções & Modo Preview da Montagem Final (UX / Funcional)
 
-Esta tarefa visa transformar a interação com o subsistema de seções em uma experiência ergonômica, previsível e sem atritos de interface, resolvendo assimetrias de comandos e implementando o modo de visualização global da montagem.
+Esta tarefa foca estritamente na experiência do usuário (UX), ergonomia dos atalhos e comportamento previsível do player durante a edição.
 
 #### 📋 Sub-lista de Objetivos da Tarefa 6
 
@@ -146,7 +141,6 @@ Esta tarefa visa transformar a interação com o subsistema de seções em uma e
   - Aterrissar o cursor no sentido do movimento (`proceed` $\rightarrow$ início da seção da direita; `rewind` $\rightarrow$ fim da seção da esquerda).
   - Bloquear divisão inválida nos limites extremos (`frame_id == start` ou `frame_id == end - 1`) com feedback amigável.
 - [ ] **6.2. Juntar Seções (`Join — Ctrl + j`) Contextual e Bidirecional:**
-  - Permitir união sem necessidade de navegar manualmente para a seção seguinte.
   - Regra de ponta automática (primeira junta com próxima; última junta com anterior).
   - Regra de meio automática orientada pelo sentido da reprodução (`proceed` $\rightarrow$ direita; `rewind` $\rightarrow$ esquerda).
   - Operação determinística e sem timers.
@@ -165,48 +159,81 @@ Esta tarefa visa transformar a interação com o subsistema de seções em uma e
 
 ---
 
-#### Detalhamento Técnico dos Pontos da Tarefa 6
+#### Detalhamento Técnico da Tarefa 6 (UX)
 
 ##### 1. Dividir Seção (`Split — Ctrl + s`) Sensível ao Sentido do Buffer
-* **Comportamento Atual:** A divisão gera duas seções e joga o cursor compulsoriamente no início da segunda metade, ignorando se o usuário estava rebobinando ou avançando.
-* **Comportamento Esperado:**
-  * Se o usuário estava em **`proceed` (+1)**: o cursor aterrissa no **primeiro frame da seção da direita** (`frame_id + 1`), dando continuidade ao fluxo natural de avanço.
-  * Se o usuário estava em **`rewind` (-1)**: o cursor aterrissa no **último frame da seção da esquerda** (`frame_id`), permitindo continuar inspecionando para trás.
-  * **Validação de Limites:** Se o usuário tentar dividir no primeiro frame (`frame_id == start`) ou no último (`frame_id == end - 1`), a operação deve ser rejeitada com aviso explicativo, prevenindo seções de tamanho zero ou corrupção de ranges.
+* Se o usuário estava em **`proceed` (+1)**: o cursor aterrissa no **primeiro frame da seção da direita** (`frame_id + 1`), dando continuidade ao fluxo natural de avanço.
+* Se o usuário estava em **`rewind` (-1)**: o cursor aterrissa no **último frame da seção da esquerda** (`frame_id`), permitindo continuar inspecionando para trás.
+* **Validação de Limites:** Divisões em `frame_id == start` ou `frame_id == end - 1` são rejeitadas com aviso claro, prevenindo seções de tamanho zero.
 
 ##### 2. Juntar Seções (`Join — Ctrl + j`) Contextual e Bidirecional (Sem Timer)
-* **Comportamento Atual:** O método só une com a seção anterior em `self._left`. Na Seção 1, o comando falha e exige que o usuário avance para a Seção 2 antes de juntar.
-* **Comportamento Esperado:**
-  * **Ponta Esquerda (Seção 1):** Junta automaticamente com a próxima seção (direita).
-  * **Ponta Direita (Última Seção):** Junta automaticamente com a seção anterior (esquerda).
-  * **Seções Intermediárias:** A direção do player dita a união:
-    * Se em `proceed` $\rightarrow$ une com a próxima seção (direita).
-    * Se em `rewind` $\rightarrow$ une com a seção anterior (esquerda).
-  * Elimina timeouts, timers e confirmações lentas, mantendo resposta imediata.
+* **Ponta Esquerda (Seção 1):** Junta automaticamente com a próxima seção (direita).
+* **Ponta Direita (Última Seção):** Junta automaticamente com a seção anterior (esquerda).
+* **Seções Intermediárias:** A direção do player dita a união:
+  * Se em `proceed` $\rightarrow$ une com a próxima seção (direita).
+  * Se em `rewind` $\rightarrow$ une com a seção anterior (esquerda).
+* Sem timers ou menus, oferecendo resposta imediata.
 
 ##### 3. Navegação entre Seções (`Next / Prev — Ctrl + d / Ctrl + a`) no Frame Mais Próximo
-* **Comportamento Atual:** `Ctrl + a` joga o cursor no frame 0 da seção anterior, distante do ponto de corte.
-* **Comportamento Esperado:**
-  * **`Ctrl + d` (Próxima):** Salta para o **início** da próxima seção (`start`).
-  * **`Ctrl + a` (Anterior):** Salta para o **fim** da seção anterior (`end - 1`), mantendo o usuário na fronteira imediata do corte.
-  * **Navegação de Extremos:**
-    * Tecla `Home`: Salta para o início da seção atual (`start`).
-    * Tecla `End`: Salta para o fim da seção atual (`end - 1`).
+* **`Ctrl + d` (Próxima):** Salta para o **início** da próxima seção (`start`).
+* **`Ctrl + a` (Anterior):** Salta para o **fim** da seção anterior (`end - 1`), mantendo o usuário na fronteira imediata do corte.
+* Teclas `Home` (início da seção) e `End` (fim da seção) como atalhos diretos de extremos.
 
 ##### 4. Feedback Visual Imediato e Correção de Congelamento na Pausa com Espaço
-* **Comportamento Atual:** Durante pause ativo (`delay = 0`), a flag `no_read()` barra novas leituras, e os buffers recriados no `create()` não são iniciados via `run()`. A tela permanece congelada no frame antigo.
-* **Comportamento Esperado:**
-  * Todas as operações de seção (`next_section`, `prev_section`, `split_section`, `join_section`, `remove_section`) devem invocar `self.__player.set_read()`.
-  * `VideoManager.create()` deve disparar `self.servant.run()` e garantir que o primeiro frame esteja pronto.
-  * O título da janela OpenCV deve ser atualizado dinamicamente via `cv2.setWindowTitle`:
-    ```text
-    videoseq - [Seção 2/3 | Frames 534-1200 | Frame Atual: 620] (PAUSADO)
-    ```
+* Todas as operações de seção invocam `self.__player.set_read()` para liberar o frame durante pause ativo (`delay = 0`).
+* `VideoManager.create()` dispara `self.servant.run()`, garantindo que os novos buffers estejam ativos.
+* Título da janela atualizado dinamicamente via `cv2.setWindowTitle`:
+  ```text
+  videoseq - [Seção 2/3 | Frames 534-1200 | Frame: 620] (PAUSADO)
+  ```
 
 ##### 5. Modo Preview da Montagem Final (`Rough Cut Preview` — Tecla `v`)
-* **Conceito:**
-  * Atua como uma lente de visualização global que monta a linha do tempo contínua de todas as seções ativas (`_left` + `_right`), ocultando automaticamente seções deletadas e frames no `Trash`.
-* **Preservação de Estado:**
-  * Alternar a tecla `v` não altera: `frame_id`, direção (`proceed`/`rewind`), estado de pausa (`espaço`/`b`) ou velocidade de reprodução (`delay`).
-* **Sincronização de Seção ao Sair:**
-  * Se o usuário percorrer o vídeo em modo Preview e desativá-lo em um frame de outra seção, essa seção é automaticamente promovida a seção ativa no topo de `_right`.
+* Lente de visualização que projeta a linha do tempo contínua de todas as seções ativas (`_left` + `_right`), ocultando seções deletadas e frames no `Trash`.
+* Ao alternar `v`, o `frame_id`, direção, estado de pausa e velocidade permanecem 100% inalterados.
+* Ao desativar o Preview em um frame pertencente a outra seção, essa seção torna-se ativa automaticamente.
+
+---
+
+### Task 7: Refatoração Arquitetural e Manutenibilidade do Subsistema de Seções (Clean Code / Arquitetura Interna)
+
+Esta tarefa foca na modernização da arquitetura interna, eliminando acoplamentos artificiais (*over-engineering*), pilhas cegas e o excesso de classes desnecessárias.
+
+#### 📋 Sub-lista de Etapas da Tarefa 7
+
+- [ ] **7.1. Simplificação da Entidade Base `VideoSection`:**
+  - Construtor direto sem dependência obrigatória de adapters (`start`, `end`, `removed_frames`, `black_list_frames`).
+  - Métodos `split(frame_id)` e `join(other)` analíticos e diretos em memória.
+  - Métodos de serialização `from_dict(data)` e `to_dict()`.
+  - Ordenação determinística de `mapping` via `sorted(frames - removed)`.
+  - Eliminação de `ISectionAdapter`, `JSONSectionAdapter`, `FakeSectionAdapter`, `SectionUnionAdapter` e `SectionSplitProcess`.
+- [ ] **7.2. Modernização do `SectionManager` (Lista com Cursor):**
+  - Substituição do modelo de 2 pilhas (`SimpleStack(_left)` e `SimpleStack(_right)`) por `_sections: list[VideoSection]` e `_current_index: int`.
+  - Acesso direto $O(1)$ à seção ativa (`current_section`), próxima e anterior.
+  - Implementação de `can_next()`, `can_prev()`, `can_join_next()`, `can_join_prev()`.
+  - Implementação de `get_preview_mapping()` para montagem contínua.
+- [ ] **7.3. Simplificação do Histórico de Undo / Memento:**
+  - Eliminação da classe `SectionWrapper`.
+  - Substituição das 9 classes/interfaces de Memento de seções por uma pilha simples de snapshots/ações (`_undo_stack: deque`).
+- [ ] **7.4. Simplificação da Persistência JSON:**
+  - Consolidação das 8 classes de I/O (`SectionService`, `TemplateFactory`, `SectionManagerProcessFactory`, `JSONSectionSave`, `JSONReader`, `JSONWriter`, etc.) em um módulo coeso de armazenamento (`SectionStorage` ou métodos estáticos em `SectionManager`).
+- [ ] **7.5. Migração e Limpeza dos Testes Unitários:**
+  - Adaptação dos testes de `tests/test_section.py` para a nova API limpa e direta, removendo mocks e adapters obsoletos.
+
+---
+
+#### Detalhamento Técnico da Tarefa 7 (Arquitetura)
+
+##### 1. `VideoSection` Autossuficiente
+* Elimina a necessidade de 5 classes auxiliares (`ISectionAdapter`, `JSONSectionAdapter`, `FakeSectionAdapter`, `SectionUnionAdapter`, `SectionSplitProcess`).
+* `split(frame_id)` divide diretamente as listas e retorna uma tupla `(VideoSection, VideoSection)`.
+* `join(other)` valida a adjacência e retorna uma nova `VideoSection` unificada.
+
+##### 2. `SectionManager` com Cursor
+* Elimina a fragilidade do modelo Zipper de duas pilhas, onde a próxima seção fica inacessível sob a seção ativa.
+* Com `_sections: list[VideoSection]` e `_current_index: int`, operações como inspecionar a próxima seção, saber a quantidade total ou montar o preview tornam-se operações diretas de lista.
+
+##### 3. Histórico de Desfazer Enxuto
+* O `undo` de seções armazena diretamente o estado anterior da lista de seções e do cursor, dispensando a hierarquia complexa de `Originator`, `Caretaker` e `Memento` específicos para seções.
+
+##### 4. Persistência Direta
+* Leitura de arquivo `.json` com geração automática de template quando não existir e salvamento atômico sem classes intermediárias de processo ou fábrica.
