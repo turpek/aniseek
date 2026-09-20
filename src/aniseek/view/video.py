@@ -3,9 +3,9 @@ from time import sleep
 import cv2
 from loguru import logger
 
-from aniseek.editing.interfaces.section import ISectionManagerAdapter
 from aniseek.editing.manager import VideoManager
 from aniseek.editing.playlist import Playlist
+from aniseek.editing.section import SectionManager
 from aniseek.view.input_handler import PynputKeyReader
 from aniseek.view.interfaces.input import InputHandler
 from aniseek.view.shortcuts import PYNPUT_SHORTCUTS, SHORTCUTS
@@ -38,7 +38,7 @@ class VideoCon:
             self,
             video: str | Playlist, *,
             frames_mapping: list[int] = None,
-            section: ISectionManagerAdapter = None,
+            section: SectionManager = None,
             buffersize: int = 60,
             key_reader: type[InputHandler] = PynputKeyReader,
             log: bool = False

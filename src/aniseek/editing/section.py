@@ -1,381 +1,481 @@
 from __future__ import annotations
 
+import bisect
 from collections import deque
-from copy import deepcopy
 
 from loguru import logger
 
 from aniseek.core.frame_mapper import FrameMapper
-from aniseek.custom_exceptions import SectionManagerError
-from aniseek.editing.adapter import (
-    ISectionAdapter,
-    ISectionManagerAdapter,
-    SectionSplitProcess,
-    SectionUnionAdapter,
-)
-from aniseek.editing.memento import Caretaker, SectionOriginator
+from aniseek.custom_exceptions import SectionManagerError, SectionSplitProcessError
 from aniseek.editing.trash import Trash
-from aniseek.editing.utils import (
-    FrameMementoHandler,
-    SectionMementoHandler,
-    SimpleStack,
-)
+from aniseek.editing.utils import FrameMementoHandler, partition_by_value
 
 
 class VideoSection:
-    def __init__(self, adapter: ISectionAdapter):
-        self.__start = adapter.start()
-        self.__end = adapter.end()
-        self.__removed_frame = adapter.removed_frames()
-        self.black_list_frames = adapter.black_list_frames()
-        self.__id = self.__calculate_id()
-        self.__mapping = self._calculate_mapping(self.__removed_frame)
-
-    def __repr__(self):
-        return f"VideoSection('{self.id_}')"
-
-    def __add__(self, obj: VideoSection) -> VideoSection:
-        return VideoSection(SectionUnionAdapter(self, obj))
-
-    def __eq__(self, obj: int | VideoSection) -> bool:
-        if isinstance(obj, VideoSection):
-            return self.id_ == obj.id_
-        return self.id_ == obj
-
-    def __lt__(self, obj: VideoSection) -> bool:
-        return self.id_ < obj.id_
-
-    def __le__(self, obj: VideoSection) -> bool:
-        return self.id_ <= obj.id_
-
-    def __truediv__(self, frame_id: int) -> tuple[VideoSection, VideoSection]:
-        return self.split_section(frame_id)
-
-    def __calculate_id(self):
-        if len(self.get_trash()) > 0:
-            removed = min(self.get_trash())
-            return min(self.start, removed)
-        return self.start
-
-    def _calculate_mapping(self, removed):
-        if self.start is None:
-            return []
-        frames_id = set(range(self.start, self.end))
-        removeds = set(list(removed) + self.black_list_frames)
-        return list(frames_id - removeds)
+    def __init__(
+        self,
+        start: int,
+        end: int,
+        removed_frames: deque[int] | list[int] | None = None,
+        black_list_frames: list[int] | None = None,
+        id: int | None = None,
+    ) -> None:
+        self._start = start
+        self._end = end
+        self._removed_frames = deque(removed_frames) if removed_frames is not None else deque()
+        self._black_list_frames = list(black_list_frames) if black_list_frames is not None else []
+        self._id = id if id is not None else self._calculate_id()
+        self._mapping = self._calculate_mapping()
 
     @property
-    def start(self):
-        return self.__start
+    def start(self) -> int:
+        return self._start
 
     @property
-    def end(self):
-        return self.__end
+    def end(self) -> int:
+        return self._end
 
     @property
-    def id_(self):
-        return self.__id
+    def removed_frames(self) -> deque[int]:
+        return self._removed_frames
 
-    def update_range(self, frame_map: FrameMapper):
-        """Atualiza o range da seção, ou seja, o start e end dos frames"""
-        self.__start = frame_map[0]
-        self.__end = frame_map[-1]
+    @property
+    def black_list_frames(self) -> list[int]:
+        return self._black_list_frames
 
-    def get_trash(self) -> deque:
-        """
-        Devolve uma pilha dos frames removidos, portanto os elementos
-        no topo do deque foram os primeiros removidos
-        """
-        return self.__removed_frame
+    @property
+    def id(self) -> int:
+        return self._id
 
-    def get_mapping(self):
-        return self.__mapping
+    @property
+    def mapping(self) -> list[int]:
+        return self._mapping
 
-    def split_section(self, frame_id: int) -> tuple[VideoSection, VideoSection]:
-        """Método para dividir a seção em duas a partir do frame de indice `frame_id`."""
-        process = SectionSplitProcess(self, frame_id)
-        section_1, section_2 = process.split()
-        return (
-            VideoSection(section_1),
-            VideoSection(section_2)
+    @classmethod
+    def from_dict(cls, data: dict) -> VideoSection:
+        """Cria a seção diretamente do dicionário serializado."""
+        start, end = data['RANGE_FRAME_ID']
+        return cls(
+            start=start,
+            end=end,
+            removed_frames=data.get('REMOVED_FRAMES'),
+            black_list_frames=data.get('BLACK_LIST'),
         )
 
     def to_dict(self) -> dict:
-        """ Retorna o estado atual da `VideoSection` como um dicionário."""
-        data_section = dict()
-        data_section['RANGE_FRAME_ID'] = (self.start, self.end)
-        data_section['REMOVED_FRAMES'] = list(self.get_trash())
-        data_section['BLACK_LIST'] = self.black_list_frames
-        return data_section
+        """Serializa a seção para persistência JSON."""
+        return {
+            'RANGE_FRAME_ID': (self._start, self._end),
+            'REMOVED_FRAMES': list(self._removed_frames),
+            'BLACK_LIST': self._black_list_frames,
+        }
 
+    def split(self, frame_id: int) -> tuple[VideoSection, VideoSection]:
+        """Fatia a seção em duas diretamente em memória."""
+        if frame_id <= self._start or frame_id >= self._end:
+            raise SectionSplitProcessError(
+                f'Cannot split at position "{frame_id}": outside section bounds ({self._start}..{self._end}).'
+            )
+        if frame_id not in self._mapping:
+            raise SectionSplitProcessError(
+                f'Cannot split at position "{frame_id}": frame is deleted or blacklisted.'
+            )
 
-class SectionWrapper:
-    def __init__(self, section_1: VideoSection, section_2: VideoSection = None):
-        self.__check_section(section_1)
-        if section_2 is not None:
-            self.__check_section(section_2)
+        removed_1, removed_2 = partition_by_value(self._removed_frames, frame_id)
+        black_1, black_2 = partition_by_value(self._black_list_frames, frame_id)
 
-        self.__lower = section_1
-        self.__upper = section_2
-        if section_2 is None or section_2 < section_1:
-            self.__lower = section_2
-            self.__upper = section_1
+        idx_end = bisect.bisect_left(self._mapping, frame_id) - 1
+        end_1 = self._mapping[idx_end]
 
-    def __check_section(self, section):
-        if not isinstance(section, VideoSection):
-            raise TypeError(f' section expected "{VideoSection.__name__}" but received "{type(section).__name__}"!')
+        section_1 = VideoSection(self._start, end_1, removed_1, black_1)
+        section_2 = VideoSection(frame_id, self._end, removed_2, black_2)
+        return section_1, section_2
 
-    @property
-    def section_1(self) -> VideoSection | None:
-        """Devolve a seção com o meno ID ou None caso uma da seções não esteja definida."""
-        return self.__lower
+    def split_section(self, frame_id: int) -> tuple[VideoSection, VideoSection]:
+        return self.split(frame_id)
 
-    @property
-    def section_2(self) -> VideoSection:
-        """Devolve a seção com o maior ID."""
-        return self.__upper
+    def join(self, other: VideoSection) -> VideoSection:
+        """Funde a seção atual com outra adjacente diretamente em memória."""
+        lower, upper = (self, other) if self.id <= other.id else (other, self)
 
-    def to_dict(self) -> dict:
-        """Método que retorna os estados atuais das seções como um dicionário."""
-        data_2 = self.section_2.to_dict()
-        if self.section_1 is None:
-            return [data_2, None]
-        data_1 = self.section_1.to_dict()
-        return [data_1, data_2]
+        new_start = lower.start
+        new_end = upper.end
+        new_removed = deque(list(lower.removed_frames) + list(upper.removed_frames))
+
+        true_end_lower = max(lower.removed_frames) if len(lower.removed_frames) > 0 else lower.end
+        true_end_lower = max(lower.end, true_end_lower)
+        neighbor_start = true_end_lower + 1
+        neighbor_end = upper.id
+        neighborhood = list(range(neighbor_start, neighbor_end)) if neighbor_start < neighbor_end else []
+        new_black_list = lower.black_list_frames + neighborhood + upper.black_list_frames
+
+        return VideoSection(new_start, new_end, new_removed, new_black_list)
+
+    def _calculate_id(self) -> int:
+        if len(self._removed_frames) > 0:
+            return min(self._start, min(self._removed_frames))
+        return self._start
+
+    def _calculate_mapping(self) -> list[int]:
+        if self._start is None:
+            return []
+        frames_id = set(range(self._start, self._end))
+        removeds = set(list(self._removed_frames) + self._black_list_frames)
+        return sorted(frames_id - removeds)
+
+    def update_range(self, frame_map: FrameMapper | list[int]) -> None:
+        """Atualiza o range da seção, ou seja, o start e end dos frames."""
+        self._start = frame_map[0]
+        self._end = frame_map[-1]
+
+    def get_trash(self) -> deque[int]:
+        return self._removed_frames
+
+    def get_mapping(self) -> list[int]:
+        return self._mapping
+
+    def __repr__(self) -> str:
+        return f"VideoSection(id={self.id}, range=({self._start}, {self._end}))"
+
+    def __add__(self, obj: VideoSection) -> VideoSection:
+        return self.join(obj)
+
+    def __truediv__(self, frame_id: int) -> tuple[VideoSection, VideoSection]:
+        return self.split(frame_id)
+
+    def __eq__(self, other: VideoSection) -> bool:
+        return self.id == other.id
+
+    def __lt__(self, other: VideoSection) -> bool:
+        return self.id < other.id
+
+    def __le__(self, other: VideoSection) -> bool:
+        return self.id <= other.id
 
 
 class SectionManager:
-    def __init__(self, manager_adapter: ISectionManagerAdapter):
-        self._right = SimpleStack(VideoSection)
-        self._left = SimpleStack(VideoSection)
-        self.removed_sections = SimpleStack(SectionWrapper)
-
-        self._caretaker = Caretaker()
-        self._originator = SectionOriginator()
-        self.__memento_handler = SectionMementoHandler(self._originator, self._caretaker)
-        self.__frame_memento_handler = None
-
-        # O ISectionManagerAdapter deve retorna uma lista ordenada, além disso
-        # devemos considerar está lista como uma "pilha", portando a remoção
-        # deve ser feita no topo!
-        section_adapter = manager_adapter.section_adapter
-        datas = manager_adapter.get_sections()
-        while len(datas):
-            self._right.push(VideoSection(section_adapter(datas.pop())))
-
-        self.__load_removed_sections(manager_adapter, section_adapter)
-
-        if self._right.empty() and self.removed_sections.empty():
-            raise SectionManagerError('there are no sections id to work with')
-
-        self.load_mementos()
-
-    def __len__(self):
-        return len(self._right) + len(self._left)
-
-    def __load_removed_sections(
+    def __init__(
         self,
-        manager_adapter: ISectionManagerAdapter,
-        section_adapter: ISectionAdapter
+        sections: list[VideoSection],
+        removed_sections: list[list[VideoSection | None]] | None = None,
     ) -> None:
+        if not sections and not removed_sections:
+            raise SectionManagerError('there are no sections id to work with')
+        self._sections: list[VideoSection] = list(sections)
+        self._current_index: int = 0
+        self._removed_history: list[list[VideoSection | None]] = (
+            list(removed_sections) if removed_sections is not None else []
+        )
+        self._removed_sections: list[list[VideoSection | None]] = []
+        self._undo_stack: deque[dict] = deque()
 
-        # Devemos considerar a lista retornada pelo removed_sections como uma pilha,
-        # portanto a remoção deve ser feita no topo, além disso a lista deve seguir o
-        # seguinte padrão list[VideoSection, VideoSection | None]
-        rdatas = manager_adapter.removed_sections()
-        while len(rdatas):
-            section_1, section_2 = rdatas.pop()
-            data = [VideoSection(section_adapter(section_1)), section_2]
-            if section_2 is not None:
-                data[1] = VideoSection(section_adapter(section_2))
-            self.removed_sections.push(SectionWrapper(*data))
+    @property
+    def sections(self) -> list[VideoSection]:
+        return self._sections
 
-    def load_mementos_frames(self, trash: Trash):
+    @property
+    def current_index(self) -> int:
+        return self._current_index
+
+    @property
+    def removed_sections(self) -> list[list[VideoSection | None]]:
+        return self._removed_sections
+
+    @property
+    def current_section(self) -> VideoSection:
+        if 0 <= self._current_index < len(self._sections):
+            return self._sections[self._current_index]
+        raise SectionManagerError('No active section available')
+
+    @property
+    def section_id(self) -> int | None:
+        if self._sections and 0 <= self._current_index < len(self._sections):
+            return self.current_section.id
+        return None
+
+    @classmethod
+    def from_dict(cls, data: dict) -> SectionManager:
+        raw_sections = data.get('SECTIONS', [])
+        sections = [VideoSection.from_dict(s) for s in raw_sections]
+        raw_removed = data.get('REMOVED', [])
+        removed_sections = []
+        for pair in raw_removed:
+            if pair is None:
+                continue
+            sec1 = VideoSection.from_dict(pair[0]) if pair[0] is not None else None
+            sec2 = VideoSection.from_dict(pair[1]) if len(pair) > 1 and pair[1] is not None else None
+            removed_sections.append([sec1, sec2])
+        return cls(sections=sections, removed_sections=removed_sections)
+
+    def to_dict(self, trash: Trash | None = None) -> dict:
+        if trash is not None:
+            self.store_mementos_frames(trash)
+        return {
+            'SECTIONS': [s.to_dict() for s in self._sections],
+            'REMOVED': [
+                [s.to_dict() if s is not None else None for s in pair]
+                for pair in self._removed_history
+            ],
+        }
+
+    def __len__(self) -> int:
+        return len(self._sections)
+
+    def get_section(self) -> VideoSection:
+        return self.current_section
+
+    def get_mapping(self) -> list[int]:
+        if not self._sections:
+            return []
+        return self.current_section.get_mapping()
+
+    def get_preview_mapping(self) -> list[int]:
+        """Retorna o mapping contínuo unindo todas as seções ativas (Rough Cut Preview)."""
+        preview = []
+        for sec in self._sections:
+            preview.extend(sec.get_mapping())
+        return preview
+
+    def update_mapping(self) -> None:
+        if self._sections and 0 <= self._current_index < len(self._sections):
+            self.current_section.mapping = self.current_section._calculate_mapping()
+
+    def can_next(self) -> bool:
+        return self._current_index < len(self._sections) - 1
+
+    def can_prev(self) -> bool:
+        return self._current_index > 0
+
+    def _next_section(self) -> bool:
+        if self.can_next():
+            self._current_index += 1
+            return True
+        return False
+
+    def _prev_section(self) -> bool:
+        if self.can_prev():
+            self._current_index -= 1
+            return True
+        return False
+
+    def next_section(self, trash: Trash) -> bool:
+        if not self.can_next():
+            return False
+        self.store_mementos_frames(trash)
+        self._next_section()
+        trash.reset(None)
+        self.load_mementos_frames(trash)
+        return True
+
+    def prev_section(self, trash: Trash) -> bool:
+        if not self.can_prev():
+            return False
+        self.store_mementos_frames(trash)
+        self._prev_section()
+        trash.reset(None)
+        self.load_mementos_frames(trash)
+        return True
+
+    def load_mementos_frames(self, trash: Trash) -> None:
+        if not self._sections or self._current_index >= len(self._sections):
+            return
+        curr = self.current_section
         trash_originator = trash.get_originator()
         trash_caretaker = trash.get_caretaker()
-        self._right.top._calculate_mapping(self._right.top.get_trash())
         frame_handler = FrameMementoHandler(trash_originator, trash_caretaker)
-        frame_handler.load_mementos(self._right.top)
+        frame_handler.load_mementos(curr)
 
-    def store_mementos_frames(self, trash: Trash):
+    def store_mementos_frames(self, trash: Trash) -> None:
+        if not self._sections or self._current_index >= len(self._sections):
+            return
+        curr = self.current_section
         trash_originator = trash.get_originator()
         trash_caretaker = trash.get_caretaker()
         frame_handler = FrameMementoHandler(trash_originator, trash_caretaker, trash)
-        frame_handler.store_mementos(self._right.top)
+        frame_handler.store_mementos(curr)
 
-    def load_mementos(self):
-        self.__memento_handler.load_mementos(self.removed_sections)
-
-    def store_mementos(self):
-        self.__memento_handler.store_mementos(self.removed_sections)
-
-    @property
-    def section_id(self) -> int:
-        if not self._right.empty():
-            return self._right.top.id_
-
-    def get_section(self) -> VideoSection:
-        return self._right.top
-
-    def get_mapping(self) -> list:
-        return self._right.top.get_mapping()
-
-    def update_mapping(self) -> None:
-        self._right.top.update_mapping()
-
-    def __next_section(self, min_size: int) -> bool:
-        if len(self._right) > min_size:
-            self._left.push(self._right.pop())
-            return True
-        return False
-
-    def _next_section(self) -> bool:
-        """Passa para a próxima seção se existir."""
-
-        # Como a seção atual está sempre no topo da pilha não
-        # podemos remover a última seção da mesma, pois ficariamos
-        # sem seção para consultar
-        return self.__next_section(1)
-
-    def _prev_section(self) -> bool:
-        """Retorna para a seção anterior."""
-        if not self._left.empty():
-            self._right.push(self._left.pop())
-            return True
-        return False
-
-    def __check_right(self):
-        """Para o caso do última frame ser removido, devemos voltar para a seção anterior."""
-        if self._right.empty() and not self._left.empty():
-            self._prev_section()
-
-    def __remove_section(
-        self,
-        section_1: VideoSection,
-        section_2: VideoSection = None
-    ) -> None:
-        data = SectionWrapper(section_1, section_2)
-        self._originator.set_state(data)
-        self._caretaker.save(self._originator)
-
-    def remove_section(self, trash: Trash) -> bool:
-        if self._right.empty():
-            logger.debug('there are no more sections to remove')
+    def split_section(self, frame_id: int, trash: Trash) -> bool:
+        if not self._sections:
             return False
-        self.store_mementos_frames(trash)
-        self.__remove_section(self._right.pop())
-        self.__check_right()
-        return True
-
-    def __restore_right(self, section) -> None:
-        while self.__next_section(0):
-            if self._right.empty():
-                break
-            elif section < self._right.top:
-                break
-
-    def __restore_left(self, section) -> None:
-        while self._prev_section():
-            if self._left.empty():
-                break
-            elif self._left.top <= section:
-                break
-
-    def restore_section(self):
-        """Restaura a última seção excluida."""
-        if self._caretaker.undo(self._originator):
-            data = self._originator.get_state()
-            section_1 = data.section_1
-            section_2 = data.section_2
-
-            if not self._left.empty() and section_2 < self._left.top:
-                self.__restore_left(section_2)
-            elif not self._right.empty() and self._right.top <= section_2:
-                self.__restore_right(section_2)
-
-            # A escolha de poder fazer section_1 ser None, nos permite
-            # simplificar a `restore_section`, já que section_2 sempre deve
-            # ser sempre maior que section_1, portando ficar na pilha _right.
-            if isinstance(section_1, VideoSection):
-                self._left.pop()
-                self._left.push(section_1)
-            elif not self._left.empty() and self._left.top == section_2:
-                self._left.pop()
-                self._right.pop()
-
-            self._right.push(section_2)
-            return True
-        return False
-
-    def join_section(self, trash: Trash) -> bool:
-        if self._left.empty():
-            return False
-        self.store_mementos_frames(trash)
-        lower = self._left.pop()
-        upper = self._right.pop()
-        self._right.push(lower + upper)
-        self.__remove_section(lower, upper)
-        return True
-
-    def split_section(self, frame_id: int, trash: Trash):
         try:
             self.store_mementos_frames(trash)
-            section = self._right.pop()
-            section_1, section_2 = section / frame_id
+            curr = self.current_section
+            sec1, sec2 = curr.split(frame_id)
         except Exception:
-            self._right.push(section)
             self.load_mementos_frames(trash)
             return False
-        self._left.push(section_1)
-        self._right.push(section_2)
-        self.__remove_section(section)
+
+        self._save_undo_state()
+        self._removed_history.append([curr, None])
+        self._sections[self._current_index] = sec1
+        self._sections.insert(self._current_index + 1, sec2)
+        self._current_index += 1
         return True
 
-    def next_section(self, trash: Trash):
+    def can_join_prev(self) -> bool:
+        return self._current_index > 0
+
+    def can_join_next(self) -> bool:
+        return self._current_index < len(self._sections) - 1
+
+    def join_section(self, trash: Trash, direction: int = -1) -> bool:
+        """Funde a seção atual com a vizinha (anterior se direction == -1, próxima se direction == 1)."""
+        if direction == -1:
+            if not self.can_join_prev():
+                return False
+            idx1 = self._current_index - 1
+            idx2 = self._current_index
+        else:
+            if not self.can_join_next():
+                return False
+            idx1 = self._current_index
+            idx2 = self._current_index + 1
+
         self.store_mementos_frames(trash)
-        self._next_section()
-        self.load_mementos()
+        self._save_undo_state()
+
+        sec1 = self._sections[idx1]
+        sec2 = self._sections[idx2]
+        self._removed_history.append([sec1, sec2])
+        joined = sec1.join(sec2)
+
+        self._sections[idx1] = joined
+        del self._sections[idx2]
+        self._current_index = idx1
+        return True
+
+    def remove_section(self, trash: Trash) -> bool:
+        if not self._sections:
+            logger.debug('there are no more sections to remove')
+            return False
+
+        self.store_mementos_frames(trash)
+        self._save_undo_state()
+
+        removed = self._sections.pop(self._current_index)
+        self._removed_history.append([removed, None])
+
+        if self._current_index >= len(self._sections) and len(self._sections) > 0:
+            self._current_index = len(self._sections) - 1
+        elif len(self._sections) == 0:
+            self._current_index = 0
+
         trash.reset(None)
         self.load_mementos_frames(trash)
+        return True
 
-    def prev_section(self, trash: Trash):
-        self.store_mementos_frames(trash)
-        self._prev_section()
-        self.load_mementos()
-        trash.reset(None)
-        self.load_mementos_frames(trash)
+    def restore_section(self, trash: Trash | None = None) -> bool:
+        if self._undo_stack:
+            state = self._undo_stack.pop()
+            self._sections = [
+                VideoSection(
+                    start=s.start,
+                    end=s.end,
+                    removed_frames=deque(s.removed_frames),
+                    black_list_frames=list(s.black_list_frames),
+                    id=s.id,
+                )
+                for s in state['sections']
+            ]
+            self._current_index = state['current_index']
+            self._removed_history = [
+                [
+                    VideoSection(
+                        start=s.start,
+                        end=s.end,
+                        removed_frames=deque(s.removed_frames),
+                        black_list_frames=list(s.black_list_frames),
+                        id=s.id,
+                    )
+                    if s is not None else None
+                    for s in pair
+                ]
+                for pair in state['removed_history']
+            ]
+            if trash is not None:
+                trash.reset(None)
+                self.load_mementos_frames(trash)
+            return True
 
-    def load_trash(self, trash: Trash):
-        self.load_mementos()
-        trash.reset(None)
-        self.load_mementos_frames(trash)
+        if self._removed_history:
+            pair = self._removed_history.pop()
+            sec1, sec2 = pair[0], pair[1] if len(pair) > 1 else None
+            if sec2 is None and sec1 is not None:
+                parent = sec1
+                contained = [
+                    (i, s) for i, s in enumerate(self._sections)
+                    if s.start >= parent.start and s.end <= parent.end
+                ]
+                if len(contained) >= 2:
+                    first_idx = contained[0][0]
+                    last_idx = contained[-1][0]
+                    self._sections = (
+                        self._sections[:first_idx]
+                        + [parent]
+                        + self._sections[last_idx + 1:]
+                    )
+                    self._current_index = min(first_idx, len(self._sections) - 1)
+                else:
+                    idx = 0
+                    while idx < len(self._sections) and self._sections[idx].id < parent.id:
+                        idx += 1
+                    self._sections.insert(idx, parent)
+                    self._current_index = idx
+            elif sec1 is not None and sec2 is not None:
+                joined_idx = None
+                for i, s in enumerate(self._sections):
+                    if s.start == sec1.start and s.end == sec2.end:
+                        joined_idx = i
+                        break
+                if joined_idx is not None:
+                    self._sections[joined_idx] = sec1
+                    self._sections.insert(joined_idx + 1, sec2)
+                    self._current_index = joined_idx
+                else:
+                    idx = 0
+                    while idx < len(self._sections) and self._sections[idx].id < sec1.id:
+                        idx += 1
+                    self._sections.insert(idx, sec1)
+                    idx2 = idx + 1
+                    while idx2 < len(self._sections) and self._sections[idx2].id < sec2.id:
+                        idx2 += 1
+                    self._sections.insert(idx2, sec2)
+                    self._current_index = idx
 
-    def set_mapping(self, mapping):
-        self._right
+            if trash is not None:
+                trash.reset(None)
+                self.load_mementos_frames(trash)
+            return True
 
-    def to_dict(self, trash: Trash):
-        self.store_mementos_frames(trash)
-        right = deepcopy(self._right)
-        left = deepcopy(self._left)
-        self.load_mementos_frames(trash)
+        return False
 
-        data_sections = list()
-        while not left.empty():
-            right.push(left.pop())
-        while not right.empty():
-            data = right.pop()
-            data_sections.append(data.to_dict())
-
-        self.store_mementos()
-        removed_sections = deepcopy(self.removed_sections)
-        self.load_mementos()
-
-        data_removed = list()
-        while not removed_sections.empty():
-            data_wrapper = removed_sections.pop()
-            data_removed.append(data_wrapper.to_dict())
-
-        return {
-            'SECTIONS': data_sections,
-            'REMOVED': data_removed
-        }
+    def _save_undo_state(self) -> None:
+        sections_copy = [
+            VideoSection(
+                start=s.start,
+                end=s.end,
+                removed_frames=deque(s.removed_frames),
+                black_list_frames=list(s.black_list_frames),
+                id=s.id,
+            )
+            for s in self._sections
+        ]
+        removed_copy = [
+            [
+                VideoSection(
+                    start=s.start,
+                    end=s.end,
+                    removed_frames=deque(s.removed_frames),
+                    black_list_frames=list(s.black_list_frames),
+                    id=s.id,
+                )
+                if s is not None else None
+                for s in pair
+            ]
+            for pair in self._removed_history
+        ]
+        self._undo_stack.append({
+            'sections': sections_copy,
+            'current_index': self._current_index,
+            'removed_history': removed_copy,
+        })

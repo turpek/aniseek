@@ -14,19 +14,16 @@ from aniseek.custom_exceptions import (
     FrameWrapperError,
     SimpleStackError,
 )
-from aniseek.editing.adapter import FakeSectionAdapter
 from aniseek.editing.memento import (
     Caretaker,
-    SectionOriginator,
     TrashOriginator,
 )
-from aniseek.editing.section import SectionWrapper, VideoSection
+from aniseek.editing.section import VideoSection
 from aniseek.editing.trash import Trash
 from aniseek.editing.utils import (
     FrameMementoHandler,
     FrameStack,
     FrameWrapper,
-    SectionMementoHandler,
     SimpleStack,
     VideoInfo,
     partition_by_value,
@@ -60,21 +57,8 @@ class MockFrameMapper:
 
 @fixture
 def sections():
-    list_sections = [VideoSection(FakeSectionAdapter(FAKES[k])) for k in [1, 2, 3, 4, 5, 6]]
+    list_sections = [VideoSection.from_dict(FAKES[k]) for k in [1, 2, 3, 4, 5, 6]]
     yield list_sections
-
-
-@fixture
-def removed_sections(request):
-    keys = request.param
-    removed_sections_ = SimpleStack(SectionWrapper)
-    for i, k in keys:
-        section_1 = VideoSection(FakeSectionAdapter(FAKES[i]))
-        section_2 = None
-        if k is not None:
-            section_2 = VideoSection(FakeSectionAdapter(FAKES[k]))
-        removed_sections_.push(SectionWrapper(section_1, section_2))
-    yield removed_sections_
 
 
 @fixture
@@ -284,157 +268,6 @@ def test_FrameMementoHandler_importar_remove_e_exporta_dados(sections):
 
     handler.store_mementos(section)
     result = section.get_trash()
-    assert expect == result
-
-
-# ############ Testes para a classe SectionMementoHandler ##################
-
-
-def test_SectionMementoHandler_exportar_dados_para_secao_1_elemento():
-    caretaker = Caretaker()
-    originator = SectionOriginator()
-    handler = SectionMementoHandler(originator, caretaker)
-
-    removed_sections = SimpleStack(SectionWrapper)
-    section = VideoSection(FakeSectionAdapter(FAKES[1]))
-    removed_sections.push(SectionWrapper(section, None))
-    handler.load_mementos(removed_sections)
-    assert removed_sections.empty()
-    assert caretaker.can_undo()
-
-
-@pytest.mark.parametrize('removed_sections', [[(1, None), (2, None)]], indirect=True)
-def test_SectionMementoHandler_exportar_dados_para_secao_2_elemento(removed_sections):
-    caretaker = Caretaker()
-    originator = SectionOriginator()
-    handler = SectionMementoHandler(originator, caretaker)
-
-    handler.load_mementos(removed_sections)
-    assert removed_sections.empty()
-
-
-@pytest.mark.parametrize('removed_sections', [[(1, 2)]], indirect=True)
-def test_SectionMementoHandler_exportar_dados_para_secao_1_elemento_duplo(removed_sections):
-    caretaker = Caretaker()
-    originator = SectionOriginator()
-    handler = SectionMementoHandler(originator, caretaker)
-
-    handler.load_mementos(removed_sections)
-    assert removed_sections.empty()
-    assert caretaker.can_undo()
-
-
-@pytest.mark.parametrize('removed_sections', [[(1, 2), (3, 4)]], indirect=True)
-def test_SectionMementoHandler_exportar_dados_para_secao_2_elemento_duplo(removed_sections):
-    caretaker = Caretaker()
-    originator = SectionOriginator()
-    handler = SectionMementoHandler(originator, caretaker)
-
-    handler.load_mementos(removed_sections)
-    assert removed_sections.empty()
-    assert caretaker.can_undo()
-
-
-def test_SectionMementoHandler_importar_dados_de_memento_vazio():
-    caretaker = Caretaker()
-    originator = SectionOriginator()
-    handler = SectionMementoHandler(originator, caretaker)
-
-    removed_sections = SimpleStack(SectionWrapper)
-    handler.store_mementos(removed_sections)
-    assert removed_sections.empty()
-
-
-@pytest.mark.parametrize('removed_sections', [[(1, None)]], indirect=True)
-def test_SectionMementoHandler_importar_dados_de_memento_1(removed_sections):
-    expect = None
-    expect_id = 0
-    caretaker = Caretaker()
-    originator = SectionOriginator()
-    handler = SectionMementoHandler(originator, caretaker)
-
-    # Carregando o dado no memento
-    handler.load_mementos(removed_sections)
-
-    # Agora vem o teste
-    handler.store_mementos(removed_sections)
-    assert not removed_sections.empty()
-    assert not caretaker.can_undo()
-
-    result = removed_sections.top.section_1
-    result_id = removed_sections.top.section_2.id_
-    assert expect == result
-    assert expect_id == result_id
-
-
-@pytest.mark.parametrize('removed_sections', [[(1, 2)]], indirect=True)
-def test_SectionMementoHandler_importar_dados_de_memento_1_elemento_duplo(removed_sections):
-    caretaker = Caretaker()
-    originator = SectionOriginator()
-    handler = SectionMementoHandler(originator, caretaker)
-
-    # Carregando o dado no memento
-    handler.load_mementos(removed_sections)
-
-    # Agora vem o teste
-    handler.store_mementos(removed_sections)
-    assert not removed_sections.empty()
-    assert not caretaker.can_undo()
-
-
-@pytest.mark.parametrize('removed_sections', [[(1, None), (2, 3)]], indirect=True)
-def test_SectionMementoHandler_importar_dados_de_memento_2_elementos(removed_sections):
-    expect = 2
-    expect_id1 = 100
-    expect_id2 = 200
-    caretaker = Caretaker()
-    originator = SectionOriginator()
-    handler = SectionMementoHandler(originator, caretaker)
-
-    # Carregando o dado no memento
-    handler.load_mementos(removed_sections)
-
-    # Agora vem o teste
-    handler.store_mementos(removed_sections)
-    result = len(removed_sections)
-    assert expect == result
-
-    result_id1 = removed_sections.top.section_1.id_
-    result_id2 = removed_sections.top.section_2.id_
-    assert expect_id1 == result_id1
-    assert expect_id2 == result_id2
-
-
-@pytest.mark.parametrize('removed_sections', [[(1, None), (2, None), (3, None), (4, 5)]], indirect=True)
-def test_SectionMementoHandler_importar_dados_de_memento_4_elementos(removed_sections):
-    expect = 4
-    caretaker = Caretaker()
-    originator = SectionOriginator()
-    handler = SectionMementoHandler(originator, caretaker)
-
-    # Carregando o dado no memento
-    handler.load_mementos(removed_sections)
-
-    # Agora vem o teste
-    handler.store_mementos(removed_sections)
-    result = len(removed_sections)
-    assert expect == result
-
-
-@pytest.mark.parametrize('removed_sections', [[(1, None), (2, None), (3, None), (4, 5)]], indirect=True)
-def test_SectionMementoHandler_importar_dados_de_memento_4_elementos_e_exportar(removed_sections):
-    expect = 0
-    caretaker = Caretaker()
-    originator = SectionOriginator()
-    handler = SectionMementoHandler(originator, caretaker)
-
-    # Carregando o dado no memento
-    handler.load_mementos(removed_sections)
-    handler.store_mementos(removed_sections)
-
-    # Agora vem o teste
-    handler.load_mementos(removed_sections)
-    result = len(removed_sections)
     assert expect == result
 
 
