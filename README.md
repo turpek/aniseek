@@ -2,77 +2,63 @@
 
 **aniseek** é um motor inteligente para busca, navegação e leitura precisa frame a frame de vídeos, desenvolvido em Python. Diferente de um player convencional, o aniseek é focado na manipulação e extração temporal de frames, permitindo avanço e retrocesso instantâneos via buffers concorrentes.
 
-Sua arquitetura é baseada em um sistema de duplo buffer (`BufferLeft` e `BufferRight`), que permite uma navegação eficiente tanto para frente (`proceed`) quanto para trás (`rewind`).
+Sua arquitetura é baseada em um sistema de duplo buffer (`VideoBufferLeft` e `VideoBufferRight`), que permite uma navegação eficiente tanto para frente (`proceed`) quanto para trás (`rewind`).
 
 ## ✨ Funcionalidades Principais
 
-- **Navegação Frame a Frame:** Controle total sobre a reprodução, com a capacidade de avançar e retroceder quadro a quadro.
+- **Navegação Frame a Frame:** Controle total sobre a reprodução, com a capacidade de avançar e retroceder quadro a quadro instantaneamente.
 - **Gerenciamento de Seções:** Divida o vídeo em múltiplas seções, permitindo operações como:
   - **Dividir (`Split`):** Crie uma nova seção a partir do frame atual.
   - **Juntar (`Join`):** Mescle a seção atual com a anterior.
   - **Remover:** Exclua seções inteiras do vídeo.
-  - **Navegar entre seções.**
+  - **Navegar entre seções:** Salte diretamente para o início ou fim de seções.
 - **Edição Não-Destrutiva:**
-  - **Remoção de Frames:** Marque frames para serem removidos sem excluí-los permanentemente do arquivo original.
-  - **Lixeira (`Trash`):** Um sistema de "lixeira" que armazena os frames removidos e permite restaurá-los (`undo`).
-- **Controle de Velocidade:** Acelere ou desacelere a velocidade de reprodução.
-- **Suporte a Playlist:** Carregue e navegue por uma lista de vídeos.
-- **Persistência de Edições:** Salva o estado das seções e frames removidos em um arquivo `.json` associado ao vídeo.
+  - **Remoção de Frames:** Marque frames para serem removidos sem excluí-los do arquivo original.
+  - **Lixeira (`Trash`):** Um sistema de lixeira que armazena os frames removidos e permite restaurá-los (`undo`).
+- **Controle de Velocidade:** Acelere ou desacelere a velocidade de reprodução em tempo real.
+- **Suporte a Playlist:** Carregue e navegue por uma lista sequencial de vídeos.
+- **Persistência de Edições:** Salva o estado das seções e frames removidos em um arquivo sidecar `.json` associado ao vídeo.
 
 ## 🛠️ Tecnologias Utilizadas
 
-- [Python 3](https://www.python.org/)
+- [Python 3.12+](https://www.python.org/)
 - [OpenCV (`opencv-python`)](https://pypi.org/project/opencv-python/): Para decodificação e exibição dos frames de vídeo.
-- [Loguru](https://github.com/Delgan/loguru): Para logging.
+- [pynput](https://pypi.org/project/pynput/): Para captura precisa de modificadores de teclado (`Ctrl`, `Shift`, `Alt`) via hooks do SO.
 - [NumPy](https://numpy.org/): Para manipulação de arrays de frames.
+- [Loguru](https://github.com/Delgan/loguru): Para logging estruturado.
+- [uv](https://github.com/astral-sh/uv): Gerenciamento moderno de pacotes e ambientes Python.
 
 ## 🚀 Instalação e Execução
 
 **1. Clone o repositório:** 
 
 ```bash
-git clone https://github.com/turpek/GPlayer.git
-cd GPlayer
+git clone https://github.com/turpek/aniseek.git
+cd aniseek
 ```
 
-**2. Crie um ambiente virtual (recomendado):**
-
-Bash
+**2. Instale as dependências via `uv` (recomendado):**
 
 ```bash
-python -m venv venv
+uv sync
 ```
 
-- No Windows: `venv\Scripts\activate`
-
-- No Linux/macOS: `source venv/bin/activate`
-
-**3. Instale as dependências:**
-
-O projeto utiliza as bibliotecas listadas no arquivo requeriments.txt.
-
-Bash
+*Ou utilizando pip convencional:*
 
 ```bash
-pip install -r requeriments.txt
+python -m venv .venv
+source .venv/bin/activate  # No Windows: .venv\Scripts\activate
+pip install -e .
 ```
 
-**4. Execute o programa:**
-
-Para iniciar, crie um script principal (ex: main.py) para instanciar e rodar a classe VideoCon.
-
-Python
+**3. Exemplo de uso básico:**
 
 ```python
-# Exemplo deit clone https://github.com/turpek/GPlayer.git conteúdo para main.py
-
-from src.video import VideoCon
-from src.playlist import Playlist
+from aniseek.editing.playlist import Playlist
+from aniseek.view import VideoCon
 
 if __name__ == '__main__':
-    # Coloque o caminho para o seu vídeo aqui
     video_path = "caminho/para/seu/video.mp4"
-
     playlist = Playlist([video_path])
 
     with VideoCon(playlist) as video:
@@ -81,51 +67,50 @@ if __name__ == '__main__':
             video.show(ret, frame)
 ```
 
-Execute o script:
-
-Bash
+Execute o script com:
 
 ```bash
-python main.py
+uv run python main.py
 ```
 
 ## ⌨️ Comandos e Atalhos
 
-A interação com o player é feita através de teclas na janela do OpenCV:
+O sistema de atalhos adota uma separação categórica entre operações de **Frames/Reprodução** (teclas soltas) e operações de **Seções** (com tecla modificadora `Ctrl` via `pynput` por padrão, ou `Shift`/Maiúsculas no fallback OpenCV):
 
-| Tecla        | Ação                     | Descrição                                                     |
-| ------------ | ------------------------ | ------------------------------------------------------------- |
-| **`d`**      | **Proceed**              | Ativa o modo de navegação para frente (padrão).               |
-| **`a`**      | **Rewind**               | Ativa o modo de navegação para trás.                          |
-| **`espaço`** | **Pause/Play (Delay)**   | Pausa a reprodução (delay=0) ou retoma à velocidade atual.    |
-| **`b`**      | **Pause/Play (Toggle)**  | Pausa ou retoma a reprodução.                                 |
-| **`x`**      | **Remover Frame**        | Remove o frame atual e o envia para a lixeira.                |
-| **`u`**      | **Desfazer (Undo)**      | Restaura o último frame removido da lixeira.                  |
-| **`[`**      | **Diminuir Velocidade**  | Aumenta o delay entre os frames.                              |
-| **`]`**      | **Aumentar Velocidade**  | Diminui o delay entre os frames.                              |
-| **`=`**      | **Restaurar Velocidade** | Volta para a velocidade de reprodução padrão.                 |
-| **`s`**      | **Dividir Seção**        | Divide a seção atual no frame corrente.                       |
-| **`c`**      | **Juntar Seção**         | Une a seção atual com a seção anterior.                       |
-| **`r`**      | **Remover Seção**        | Remove a seção atual.                                         |
-| **`y`**      | **Desfazer Seção**       | Restaura a última operação de seção (dividir/juntar/remover). |
-| **`k`**      | **Próxima Seção**        | Pula para a próxima seção do vídeo.                           |
-| **`j`**      | **Seção Anterior**       | Volta para a seção anterior.                                  |
-| **`n`**      | **Próximo Vídeo**        | Carrega o próximo vídeo da playlist.                          |
-| **`p`**      | **Vídeo Anterior**       | Carrega o vídeo anterior da playlist.                         |
-| **`q`**      | **Sair**                 | Encerra o programa e salva o estado das seções.               |
+### 1. Reprodução e Controle de Frames (Sem modificador)
 
-### Diferença entre os Pauses Modos de Operação: Reprodução vs. Edição
+| Tecla | Ação | Descrição |
+| :---: | :--- | :--- |
+| **`d`** | **Proceed** | Avança frame a frame em direção normal (+1). |
+| **`a`** | **Rewind** | Recua frame a frame em direção reversa (-1). |
+| **`espaço`** | **Pause/Play (Delay)** | Pausa ativa para edição (delay=0) ou retoma à velocidade atual. |
+| **`b`** | **Pause/Play (Toggle)** | Pausa ou retoma a reprodução contínua. |
+| **`x`** | **Remover Frame** | Remove o frame atual e envia para a lixeira (`Trash`). |
+| **`u`** | **Desfazer Frame** | Restaura o último frame removido da lixeira. |
+| **`[`** | **Diminuir Velocidade** | Aumenta o delay entre frames exibidos. |
+| **`]`** | **Aumentar Velocidade** | Diminui o delay entre frames exibidos. |
+| **`=`** | **Restaurar Velocidade** | Restaura a velocidade padrão de reprodução. |
+| **`n`** | **Próximo Vídeo** | Avança para o próximo vídeo da playlist. |
+| **`p`** | **Vídeo Anterior** | Retorna para o vídeo anterior da playlist. |
+| **`q`** | **Sair** | Encerra o player e persiste as seções no arquivo `.json`. |
 
-O GPlayer foi projetado com dois modos distintos de pausa que definem a sua operação: um **Modo de Reprodução** e um **Modo de Edição**. Ao pressionar a tecla `espaço`, o programa entra no **Modo de Edição**, um estado de "pausa ativa" onde o vídeo congela, mas o sistema fica aguardando comandos. Isso permite a navegação precisa frame a frame com as teclas `a` e `d`, além de outras operações como remover (`x`) ou dividir (`s`) seções diretamente no quadro exibido. Em contrapartida, a tecla `b` ativa um pause de reprodução convencional, que simplesmente interrompe o fluxo do vídeo para visualização, sem permitir a mesma interatividade para manipulação dos frames.
+### 2. Gerenciamento de Seções (Com Modificador)
 
-## 💡 Conceitos do Projeto
+| Operação | Padrão (`pynput`) | Fallback (`cv2`) | Descrição |
+| :--- | :---: | :---: | :--- |
+| **Próxima Seção** | **`Ctrl + d`** | `Shift + d` / `D` | Salta para a próxima seção do vídeo. |
+| **Seção Anterior** | **`Ctrl + a`** | `Shift + a` / `A` | Salta para a seção anterior do vídeo. |
+| **Dividir Seção** | **`Ctrl + s`** | `Shift + s` / `S` | Divide a seção no frame atual (**S**plit). |
+| **Juntar Seção** | **`Ctrl + j`** | `Shift + j` / `J` | Une a seção atual com a anterior (**J**oin). |
+| **Remover Seção** | **`Ctrl + x`** | `Shift + x` / `X` | Remove a seção inteira atual. |
+| **Desfazer Seção** | **`Ctrl + u`** | `Shift + u` / `U` | Desfaz a última alteração de seção (**U**ndo). |
 
-- **`FrameMapper`**: Uma estrutura de dados central que mapeia todos os frames válidos que devem ser exibidos, excluindo os que foram removidos ou estão em `blacklists`.
+---
 
-- **`PlayerControl`**: Orquestra a lógica de navegação, alternando entre os buffers `VideoBufferLeft` (para `rewind`) e `VideoBufferRight` (para `proceed`).
+## 💡 Conceitos Fundamentais
 
-- **`SectionManager`**: Gerencia o ciclo de vida das seções de um vídeo. As operações de edição (dividir, juntar, remover) são controladas aqui. O estado das seções é salvo em um arquivo `.json` para persistência.
-
-- **`Trash`**: Implementa o padrão Memento para permitir que a remoção de frames possa ser desfeita.
-
-# 
+- **`VideoReader` / Duplo Buffer:** Leitores paralelos concorrentes (`VideoBufferRight` e `VideoBufferLeft`) operando cooperativamente em memória (`servant` e `master`), garantindo troca de sentido instantânea sem lag de decodificação.
+- **`FrameMapper`:** Estrutura otimizada em C (`array('l')`) que indexa os IDs válidos de frames com busca binária rápida (`bisect`) e alterna dinamicamente entre decodificação pesada (`read()`) e pulo leve de cabeçalho (`grab()`).
+- **`SectionManager`:** Gerencia o ciclo de vida das seções temporais do vídeo e sua persistência automática em disco.
+- **`Trash` & Memento:** Padrão arquitetural que preserva o histórico de edições e descartes para restauração a qualquer momento.
+- **`InputHandler` / `PynputKeyReader`:** Motor desacoplado de leitura de teclado com suporte a modificadores em nível de sistema operacional, eliminando limitações de backends gráficos.
