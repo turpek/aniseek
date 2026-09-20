@@ -185,4 +185,10 @@ def test_shortcuts_mapping():
     assert SHORTCUTS[HybridKeyReader] is HYBRID_SHORTCUTS
     assert CV2_SHORTCUTS[ord("d")] == "ProceesCommand"
     assert PYNPUT_SHORTCUTS[InputHandler.CTRL_BIT | ord("d")] == "NextSectionCommand"
+    assert PYNPUT_SHORTCUTS[InputHandler.CTRL_BIT | ord("s")] == "SplitSectionCommand"
+    assert PYNPUT_SHORTCUTS[InputHandler.CTRL_BIT | ord("j")] == "JoinSectionCommand"
     assert CV2_SHORTCUTS[InputHandler.SHIFT_BIT | ord("d")] == "NextSectionCommand"
+    assert CV2_SHORTCUTS[InputHandler.SHIFT_BIT | ord("s")] == "SplitSectionCommand"
+    assert CV2_SHORTCUTS[InputHandler.SHIFT_BIT | ord("j")] == "JoinSectionCommand"
+    assert CV2_SHORTCUTS[ord("S")] == "SplitSectionCommand"
+    assert CV2_SHORTCUTS[ord("J")] == "JoinSectionCommand"

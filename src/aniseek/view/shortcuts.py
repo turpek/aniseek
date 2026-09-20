@@ -6,49 +6,57 @@ from aniseek.view.interfaces.input import InputHandler
 IP = InputHandler
 
 CV2_SHORTCUTS: dict[int, str] = {
+    # Playback & speed control
     ord('b'): 'PauseCommand',
     ord('q'): 'QuitCommand',
-    ord('a'): 'RewindCommand',
-    ord('d'): 'ProceesCommand',
-    ord(']'): 'IncreaseSpeedCommand',
-    ord('['): 'DecreaseSpeedCommand',
     ord(' '): 'PauseDelayCommand',
     ord('='): 'RestoreDelayCommand',
-    ord('x'): 'RemoveFrameCommand',
-    ord('u'): 'UndoFrameCommand',
+    ord(']'): 'IncreaseSpeedCommand',
+    ord('['): 'DecreaseSpeedCommand',
     ord('n'): 'NextVideoCommand',
     ord('p'): 'PrevVideoCommand',
-    ord('k'): 'NextSectionCommand',
-    ord('j'): 'PrevSectionCommand',
+    # Frame operations (no modifier)
+    ord('d'): 'ProceesCommand',
+    ord('a'): 'RewindCommand',
+    ord('x'): 'RemoveFrameCommand',
+    ord('u'): 'UndoFrameCommand',
+    # Section operations (with Shift or Uppercase)
     IP.SHIFT_BIT | ord('d'): 'NextSectionCommand',
+    ord('D'): 'NextSectionCommand',
     IP.SHIFT_BIT | ord('a'): 'PrevSectionCommand',
-    ord('s'): 'SplitSectionCommand',
-    ord('y'): 'UndoSectionCommand',
-    IP.SHIFT_BIT | ord('u'): 'UndoSectionCommand',
-    ord('c'): 'JoinSectionCommand',
-    ord('r'): 'RemoveSectionCommand',
+    ord('A'): 'PrevSectionCommand',
+    IP.SHIFT_BIT | ord('s'): 'SplitSectionCommand',
+    ord('S'): 'SplitSectionCommand',
+    IP.SHIFT_BIT | ord('j'): 'JoinSectionCommand',
+    ord('J'): 'JoinSectionCommand',
     IP.SHIFT_BIT | ord('x'): 'RemoveSectionCommand',
+    ord('X'): 'RemoveSectionCommand',
+    IP.SHIFT_BIT | ord('u'): 'UndoSectionCommand',
+    ord('U'): 'UndoSectionCommand',
 }
 
 PYNPUT_SHORTCUTS: dict[int, str] = {
+    # Playback & speed control
     ord('b'): 'PauseCommand',
     ord('q'): 'QuitCommand',
-    ord('a'): 'RewindCommand',
-    ord('d'): 'ProceesCommand',
-    ord(']'): 'IncreaseSpeedCommand',
-    ord('['): 'DecreaseSpeedCommand',
     ord(' '): 'PauseDelayCommand',
     ord('='): 'RestoreDelayCommand',
-    ord('x'): 'RemoveFrameCommand',
-    ord('u'): 'UndoFrameCommand',
+    ord(']'): 'IncreaseSpeedCommand',
+    ord('['): 'DecreaseSpeedCommand',
     ord('n'): 'NextVideoCommand',
     ord('p'): 'PrevVideoCommand',
+    # Frame operations (no modifier)
+    ord('d'): 'ProceesCommand',
+    ord('a'): 'RewindCommand',
+    ord('x'): 'RemoveFrameCommand',
+    ord('u'): 'UndoFrameCommand',
+    # Section operations (with Ctrl)
     IP.CTRL_BIT | ord('d'): 'NextSectionCommand',
     IP.CTRL_BIT | ord('a'): 'PrevSectionCommand',
-    ord('s'): 'SplitSectionCommand',
-    IP.CTRL_BIT | ord('u'): 'UndoSectionCommand',
-    ord('c'): 'JoinSectionCommand',
+    IP.CTRL_BIT | ord('s'): 'SplitSectionCommand',
+    IP.CTRL_BIT | ord('j'): 'JoinSectionCommand',
     IP.CTRL_BIT | ord('x'): 'RemoveSectionCommand',
+    IP.CTRL_BIT | ord('u'): 'UndoSectionCommand',
 }
 
 HYBRID_SHORTCUTS = PYNPUT_SHORTCUTS
