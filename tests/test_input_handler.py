@@ -197,3 +197,29 @@ def test_shortcuts_mapping():
     assert PYNPUT_SHORTCUTS[InputHandler.CTRL_BIT | ord("w")] == "SaveCommand"
     assert PYNPUT_SHORTCUTS[InputHandler.SHIFT_BIT | ord("w")] == "SaveCommand"
     assert PYNPUT_SHORTCUTS[ord("W")] == "SaveCommand"
+
+
+@pytest.mark.parametrize(
+    ("vk", "expected_code"),
+    [
+        (0xFF9D, ord("5")),  # XK_KP_Begin (Numpad 5)
+        (0xFFB5, ord("5")),  # XK_KP_5
+        (0xFFB1, ord("1")),  # XK_KP_1
+        (0x65, ord("5")),    # VK_NUMPAD5 (Windows)
+        (0xFF8D, 13),        # XK_KP_Enter
+        (0xFFAB, ord("+")),  # XK_KP_Add
+    ],
+    ids=["numpad_5_begin", "numpad_5_x11", "numpad_1_x11", "numpad_5_win", "numpad_enter", "numpad_add"],
+)
+def test_pynput_key_reader_numpad_keys(vk, expected_code):
+    """Verifica decodificação de teclas numéricas do Numpad com char=None."""
+    with patch("aniseek.view.input_handler.keyboard.Listener"):
+        reader = PynputKeyReader()
+        key = keyboard.KeyCode.from_vk(vk)
+        reader._on_press(key)
+        reader._on_release(key)
+
+        with patch("aniseek.view.input_handler.cv2.waitKey", return_value=-1):
+            code = reader.get_code(30)
+            assert code == expected_code
+        reader.join()
