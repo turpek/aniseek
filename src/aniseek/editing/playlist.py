@@ -6,7 +6,12 @@ from aniseek.editing.utils import VideoInfo
 
 
 class Playlist:
-    def __init__(self, videos: list[str | Path], labels: list[str | None] = None):
+    def __init__(
+        self,
+        videos: list[str | Path],
+        labels: list[str | None] | None = None,
+        save_paths: list[str | Path | None] | None = None,
+    ):
         """
         Playlist é a classe responsavel por gerencia a lista de reprodução de vídeos.
         Com ela é possível fazer
@@ -20,9 +25,11 @@ class Playlist:
 
         Args:
             videos (list[str | Path]): é o caminho até o arquivo de vídeo.
-            lables (list[str | None] = None): são os rótulos das seções dos vídeos, a mesmas
+            labels (list[str | None] | None): são os rótulos das seções dos vídeos, a mesmas
                 tem a relação de 1:1 com o argumento `videos`. se o elemento for None, o mesmo
                 assumerá o valor de 'section_x' onde x é um valor inteiro
+            save_paths (list[str | Path | None] | None): caminhos de arquivo para salvar
+                as seções correspondentes a cada vídeo.
         """
 
         if len(videos) == 0:
@@ -33,11 +40,13 @@ class Playlist:
         self.__video_file = None
 
         if labels:
-            for video, label in zip(videos, labels):
-                self.__right_videos.append(VideoInfo(Path(video), label))
+            for i, (video, label) in enumerate(zip(videos, labels)):
+                sp = save_paths[i] if save_paths and i < len(save_paths) else None
+                self.__right_videos.append(VideoInfo(Path(video), label, save_path=Path(sp) if sp else None))
         else:
-            for video in videos:
-                self.__right_videos.append(VideoInfo(Path(video), 'video_01'))
+            for i, video in enumerate(videos):
+                sp = save_paths[i] if save_paths and i < len(save_paths) else None
+                self.__right_videos.append(VideoInfo(Path(video), 'video_01', save_path=Path(sp) if sp else None))
 
         self.__next_video_name()
 
