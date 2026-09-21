@@ -10,6 +10,7 @@ from aniseek.config import config
 from aniseek.core.interfaces.source import IFrameSource
 from aniseek.core.sources.registry import source_registry
 from aniseek.editing.manager import VideoManager
+from aniseek.editing.playlist import Playlist
 from aniseek.editing.section import SectionManager
 from aniseek.view.input_handler import PynputKeyReader
 from aniseek.view.interfaces.command import ButtonState, Command
@@ -109,6 +110,44 @@ class FrameViewer:
             log=log,
         )
 
+    @classmethod
+    def from_playlist(
+        cls,
+        playlist: Playlist,
+        *,
+        sections: SectionManager | dict | Path | str | None = None,
+        shortcuts: dict[int, str] | None = None,
+        buffersize: int = 60,
+        key_reader: type[InputHandler] = PynputKeyReader,
+        log: bool = False,
+    ) -> FrameViewer:
+        if not isinstance(playlist, Playlist):
+            raise TypeError(
+                f"Expected playlist to be an instance of Playlist, got {type(playlist).__name__}."
+            )
+        viewer = cls.__new__(cls)
+        viewer.__source = None
+        viewer.__log = log
+        viewer.__buffersize = buffersize
+        viewer.__creating_window()
+        viewer.__key_reader = key_reader()
+        kr = type(viewer.__key_reader)
+        base_shortcuts = SHORTCUTS.get(kr, PYNPUT_SHORTCUTS)
+        viewer.__shortcuts = dict(base_shortcuts)
+        if shortcuts is not None:
+            viewer.__shortcuts.update(shortcuts)
+
+        viewer.__last_title = None
+        viewer.__video_manager = VideoManager(buffersize, log)
+        viewer.__video_controller = VideoController(
+            playlist=playlist,
+            video_manager=viewer.__video_manager,
+            sections=sections,
+        )
+        viewer.command = Invoker()
+        viewer.set_commands(viewer.__video_controller)
+        return viewer
+
     def bind(self, key: int, command: Command) -> None:
         """Associa uma tecla diretamente a uma instância de Command."""
         if not isinstance(command, Command):
@@ -145,6 +184,10 @@ class FrameViewer:
         self.__key_reader.join()
 
     @property
+    def video_controller(self) -> VideoController:
+        return self.__video_controller
+
+    @property
     def frame_id(self):
         return self.__video_controller.frame_id
 
@@ -172,14 +215,21 @@ class FrameViewer:
             frame_id = self.frame_id if self.frame_id is not None else '-'
             direction_str = '<<' if self.__video_manager.player.is_rewind else '>>'
             paused_str = ' (PAUSADO)' if self.__video_manager.player.delay == 0 else ''
+
+            vname_prefix = ''
+            if self.__video_controller.playlist is not None:
+                vinfo = self.__video_controller.playlist.get_video_info()
+                if vinfo is not None:
+                    vname_prefix = f'[{vinfo.label}] '
+
             if self.__video_controller.is_preview:
-                title = f'videoseq - [PREVIEW | Frame: {frame_id}] [{direction_str}]{paused_str}'
+                title = f'videoseq - {vname_prefix}[PREVIEW | Frame: {frame_id}] [{direction_str}]{paused_str}'
             else:
                 sec_man = self.__video_controller.section_manager
                 sec_idx = sec_man.current_index + 1
                 sec_total = len(sec_man.sections)
                 sec = sec_man.current_section
-                title = f'videoseq - [Seção {sec_idx}/{sec_total} | Frames {sec.start}-{sec.end - 1} | Frame: {frame_id}] [{direction_str}]{paused_str}'
+                title = f'videoseq - {vname_prefix}[Seção {sec_idx}/{sec_total} | Frames {sec.start}-{sec.end - 1} | Frame: {frame_id}] [{direction_str}]{paused_str}'
             if title != self.__last_title:
                 cv2.setWindowTitle('videoseq', title)
                 self.__last_title = title

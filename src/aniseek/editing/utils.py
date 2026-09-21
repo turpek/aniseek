@@ -162,13 +162,20 @@ class FrameStack:
 
 
 class VideoInfo:
-    def __init__(self, path: Path, label: str, format_file: str = '.json'):
+    def __init__(
+        self,
+        path: Path,
+        label: str,
+        format_file: str = '.json',
+        save_path: Path | None = None,
+    ):
         self.__path = path
         self.__suffix = path.suffix
         self.__label = label
         self.__fps = None
         self.__frame_count = None
         self.__format_file = format_file
+        self.__save_path = save_path
 
     def __repr__(self):
         return f"VideoInfo('{self.path}')"
@@ -196,6 +203,10 @@ class VideoInfo:
     @property
     def format_file(self) -> str:
         return self.__format_file
+
+    @property
+    def save_path(self) -> Path | None:
+        return self.__save_path
 
     def load_video_property(self, source: IFrameSource) -> None:
         if not self.frame_count:

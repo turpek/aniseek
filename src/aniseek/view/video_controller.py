@@ -114,7 +114,10 @@ class VideoController:
         elif self.__playlist is not None:
             video_info = self.__playlist.get_video_info()
             label = video_info.label
-            target_path = video_info.path.with_suffix(video_info.format_file)
+            if video_info.save_path is not None:
+                target_path = video_info.save_path
+            else:
+                target_path = video_info.path.with_suffix(video_info.format_file)
         elif self.video_manager.path is not None:
             label = 'video_01'
             target_path = self.video_manager.path.with_suffix('.json')
@@ -123,6 +126,8 @@ class VideoController:
             target_path = Path('sections.json')
 
         self.video_manager.save_section(self.__section_manager, target_path, label)
+        if isinstance(self.__injected_sections, dict):
+            self.__injected_sections[label] = self.__section_manager.to_dict(self.__trash)
         logger.info(f"Sections successfully saved to {target_path} [{label}]")
 
     def __save_section_manager(self):
@@ -272,7 +277,10 @@ class VideoController:
         logger.debug('Jumping to section start')
         mapping = self.__section_manager.current_section.mapping
         if mapping:
-            self.set_frame(mapping[0])
+            target_frame = mapping[0]
+            if self.__mapper and len(self.__mapper) > 0:
+                target_frame = max(target_frame, self.__mapper[0])
+            self.set_frame(target_frame)
             self.__player.set_read()
 
     def jump_section_end(self):
@@ -282,7 +290,10 @@ class VideoController:
         logger.debug('Jumping to section end')
         mapping = self.__section_manager.current_section.mapping
         if mapping:
-            self.set_frame(mapping[-1])
+            target_frame = mapping[-1]
+            if self.__mapper and len(self.__mapper) > 0:
+                target_frame = min(target_frame, self.__mapper[-1])
+            self.set_frame(target_frame)
             self.__player.set_read()
 
     def remove_section(self):
@@ -406,6 +417,10 @@ class VideoController:
     @property
     def section_manager(self):
         return self.__section_manager
+
+    @property
+    def playlist(self) -> Playlist | None:
+        return self.__playlist
 
 
 class FakeVideoController(VideoController):
