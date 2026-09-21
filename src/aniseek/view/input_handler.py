@@ -102,6 +102,26 @@ class PynputKeyReader(InputHandler):
                     base_code = ord('a') + ascii_val - 1
                 else:
                     base_code = ord(key.char.lower())
+            elif key.vk is not None:
+                # Handle Numpad keys when char is None (e.g. Linux X11 or Windows)
+                if key.vk == 0xFF9D:  # XK_KP_Begin / Numpad 5
+                    base_code = ord('5')
+                elif 0xFFB0 <= key.vk <= 0xFFB9:  # XK_KP_0 to XK_KP_9
+                    base_code = ord('0') + (key.vk - 0xFFB0)
+                elif 0x60 <= key.vk <= 0x69:  # Windows VK_NUMPAD0 to VK_NUMPAD9
+                    base_code = ord('0') + (key.vk - 0x60)
+                elif key.vk == 0xFF8D:  # XK_KP_Enter
+                    base_code = 13
+                elif key.vk == 0xFFAB:  # XK_KP_Add (+)
+                    base_code = ord('+')
+                elif key.vk == 0xFFAD:  # XK_KP_Subtract (-)
+                    base_code = ord('-')
+                elif key.vk == 0xFFAA:  # XK_KP_Multiply (*)
+                    base_code = ord('*')
+                elif key.vk == 0xFFAF:  # XK_KP_Divide (/)
+                    base_code = ord('/')
+                elif key.vk in (0xFFAC, 0xFF9E, 0xFF96):  # XK_KP_Decimal (.)
+                    base_code = ord('.')
         elif isinstance(key, keyboard.Key):
             if key == keyboard.Key.space:
                 base_code = ord(' ')
