@@ -23,10 +23,15 @@ class MyVideoCapture(IFrameSource):
     def seek(self, frame_id: int) -> None:
         self.index = frame_id
 
-    def read(self) -> tuple[bool, np.ndarray | None]:
+    def read(self, image: np.ndarray | None = None) -> tuple[bool, np.ndarray | None]:
         if self.index < len(self.frames):
             frame = self.frames[self.index]
             self.index += 1
+            if frame is None:
+                return False, None
+            if image is not None and isinstance(frame, np.ndarray):
+                np.copyto(image, frame)
+                return True, image
             return True, frame
         return False, None
 

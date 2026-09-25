@@ -115,3 +115,13 @@ def test_image_source_context_manager_and_release(tmp_path):
     assert source.is_opened() is False
     assert source.read() == (False, None)
     assert source.grab() is False
+
+
+def test_image_source_custom_buffersize_and_fps(tmp_path):
+    """Permite configurar buffersize e FPS customizados na inicializacao."""
+    img_dir = tmp_path / "images"
+    img_dir.mkdir()
+
+    source = ImageSource(img_dir, fps=48.0, buffersize=15)
+    assert source.fps == 48.0
+    assert source.buffersize == 15

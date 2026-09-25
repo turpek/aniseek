@@ -4,6 +4,7 @@ from unittest.mock import patch
 
 import pytest
 
+from aniseek.config import config
 from aniseek.core.interfaces.source import IFrameSource
 from aniseek.core.sources.image import ImageSource
 from aniseek.core.sources.opencv import OpenCVVideoSource
@@ -149,3 +150,27 @@ def test_registry_context_manager_use(tmp_path):
         assert isinstance(source, TempSource)
 
     assert source_registry.video_source is original_video_source
+
+
+def test_registry_create_source_forwards_buffersize_and_fps(tmp_path):
+    """Encaminha buffersize e fps para o backend resolvido."""
+    video_file = tmp_path / "clip.mp4"
+    video_file.touch()
+
+    with patch("cv2.VideoCapture", return_value=MyVideoCapture(isopened=True)):
+        source = source_registry.create_source(video_file, buffersize=42, fps=50.0)
+
+    assert isinstance(source, OpenCVVideoSource)
+    assert source.buffersize == 42
+    assert source.fps == 50.0
+
+
+def test_registry_create_source_uses_global_config(tmp_path):
+    """Respeita configuracoes globais de FPS e buffersize ao instanciar fontes."""
+    img_dir = tmp_path / "images"
+    img_dir.mkdir()
+
+    with config(image_fps=48.0, buffersize=15):
+        source = source_registry.create_source(img_dir)
+        assert source.fps == 48.0
+        assert source.buffersize == 15
