@@ -1,0 +1,21 @@
+{
+  "backend": "opencv",
+  "video_path": "assets/xmodel.mp4",
+  "video_resolution": "2640 frames @ 23.98fps",
+  "cpu_model": "Intel(R) Core(TM) i5-3320M CPU @ 2.60GHz",
+  "system_os": "Linux 7.1.9-arch1-2",
+  "python_version": "3.12.13",
+  "timestamp": 1790309413.26762,
+  "ttff_ms": 669.87,
+  "forward_fps": 211.59,
+  "forward_mean_ms": 4.73,
+  "reverse_fps": 52.22,
+  "reverse_mean_ms": 19.15,
+  "ping_pong_p50_ms": 0.07,
+  "ping_pong_p95_ms": 4.52,
+  "ping_pong_mean_ms": 0.37,
+  "sparse_step5_fps": 46.36,
+  "sparse_step5_elapsed_s": 1.29,
+  "memory_peak_mb": 356.06,
+  "gc_collections": 342
+}
