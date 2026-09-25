@@ -2,6 +2,7 @@ import cv2
 import numpy as np
 import pytest
 
+from aniseek.config import config
 from aniseek.core.sources.opencv import OpenCVVideoSource
 from aniseek.core.video_reader import (
     Direction,
@@ -333,3 +334,18 @@ def test_video_reader_from_default_images(tmp_path):
         frames = [reader.frame_id for _, _ in reader]
 
     assert frames == [0, 1, 2, 3, 4]
+
+
+def test_video_reader_from_default_uses_global_config(tmp_path, monkeypatch, mock_video_capture):
+    """from_default respeita buffersize global quando nao fornecido explicitamente."""
+    dummy_video = tmp_path / "video.mp4"
+    dummy_video.touch()
+    monkeypatch.setattr(
+        "aniseek.core.sources.opencv.cv2.VideoCapture",
+        lambda _: mock_video_capture,
+    )
+
+    with config(buffersize=15):
+        with VideoReader.from_default(dummy_video, start=0, end=5) as reader:
+            assert reader.buffersize == 15
+            assert reader.source.buffersize == 15

@@ -7,6 +7,7 @@ try:
 except PackageNotFoundError:
     __version__ = "0.1.0"
 
+from aniseek.config import config
 from aniseek.core.video_reader import (
     BaseVideoReader,
     Direction,
@@ -30,6 +31,7 @@ __all__ = [
     "ReverseReader",
     "VideoReader",
     "__version__",
+    "config",
     "frame_to_seconds",
     "frame_to_timestamp",
     "resolve_frame_range",

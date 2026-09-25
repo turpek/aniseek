@@ -84,3 +84,16 @@ def test_opencv_source_adjusts_inflated_frame_count(tmp_path, monkeypatch):
     source = OpenCVVideoSource(dummy_file)
     assert source.frame_count == 498
     assert mock_cap.index == 0
+
+
+def test_opencv_source_custom_buffersize_and_fps(tmp_path, monkeypatch):
+    """Permite sobrescrever buffersize e fps na inicializacao."""
+    dummy_file = tmp_path / "video.mp4"
+    dummy_file.touch()
+
+    mock_cap = MyVideoCapture(isopened=True)
+    monkeypatch.setattr("cv2.VideoCapture", lambda _: mock_cap)
+
+    source = OpenCVVideoSource(dummy_file, buffersize=45, fps=60.0)
+    assert source.buffersize == 45
+    assert source.fps == 60.0

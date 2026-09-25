@@ -11,15 +11,23 @@ from aniseek.core.interfaces.source import IFrameSource
 class OpenCVVideoSource(IFrameSource):
     """Frame source implementation backed by its own internal OpenCV VideoCapture."""
 
-    def __init__(self, path: str | Path) -> None:
+    def __init__(
+        self,
+        path: str | Path,
+        *,
+        buffersize: int = 30,
+        fps: float | None = None,
+    ) -> None:
         self.path = Path(path)
         self.cap = cv2.VideoCapture(str(self.path))
         if not self.cap.isOpened():
             raise RuntimeError(f"Could not open video file: {self.path}")
 
         self._frame_count = int(self.cap.get(cv2.CAP_PROP_FRAME_COUNT))
-        self._fps = float(self.cap.get(cv2.CAP_PROP_FPS) or 0.0)
+        detected_fps = float(self.cap.get(cv2.CAP_PROP_FPS) or 0.0)
+        self._fps = float(fps) if fps is not None and fps > 0.0 else detected_fps
         self._validate_frame_count()
+        self.buffersize = max(1, buffersize)
 
     def _validate_frame_count(self) -> None:
         """Validate and adjust frame_count to match actual decodable frames."""

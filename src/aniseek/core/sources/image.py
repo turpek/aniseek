@@ -23,6 +23,7 @@ class ImageSource(IFrameSource):
         self,
         path: str | Path,
         *,
+        buffersize: int = 30,
         fps: float = 24.0,
         extensions: tuple[str, ...] = SUPPORTED_EXTENSIONS,
     ) -> None:
@@ -38,6 +39,7 @@ class ImageSource(IFrameSource):
         )
         self._frame_count = len(self._image_paths)
         self._fps = float(fps if fps > 0.0 else 24.0)
+        self.buffersize = max(1, buffersize)
         self._cursor = 0
         self._is_opened = True
 

@@ -8,6 +8,7 @@ from typing import Iterator, Self
 
 from numpy import ndarray
 
+from aniseek.config import config
 from aniseek.core.buffer_left import VideoBufferLeft
 from aniseek.core.buffer_right import VideoBufferRight
 from aniseek.core.frame_mapper import FrameMapper
@@ -108,18 +109,19 @@ class BaseVideoReader(ABC):
         end: int | float | str | None = None,
         step: int = 1,
         frames: list[int] | None = None,
-        buffersize: int = 30,
-        **source_kwargs,
+        buffersize: int | None = None,
+        fps: float | None = None,
     ) -> Self:
         """Create a reader using the default IFrameSource resolved by SourceRegistry."""
-        source = source_registry.create_source(path, **source_kwargs)
+        actual_buffersize = buffersize if buffersize is not None else config.buffersize
+        source = source_registry.create_source(path, buffersize=actual_buffersize, fps=fps)
         return cls(
             source,
             start=start,
             end=end,
             step=step,
             frames=frames,
-            buffersize=buffersize,
+            buffersize=actual_buffersize,
         )
 
 
@@ -293,11 +295,12 @@ class VideoReader(BaseVideoReader):
         step: int = 1,
         frames: list[int] | None = None,
         direction: Direction | str = Direction.FORWARD,
-        buffersize: int = 30,
-        **source_kwargs,
+        buffersize: int | None = None,
+        fps: float | None = None,
     ) -> Self:
         """Create a VideoReader using the default IFrameSource resolved by SourceRegistry."""
-        source = source_registry.create_source(path, **source_kwargs)
+        actual_buffersize = buffersize if buffersize is not None else config.buffersize
+        source = source_registry.create_source(path, buffersize=actual_buffersize, fps=fps)
         return cls(
             source,
             start=start,
@@ -305,7 +308,7 @@ class VideoReader(BaseVideoReader):
             step=step,
             frames=frames,
             direction=direction,
-            buffersize=buffersize,
+            buffersize=actual_buffersize,
         )
 
     @property

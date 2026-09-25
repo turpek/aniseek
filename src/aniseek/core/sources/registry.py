@@ -4,21 +4,12 @@ from contextlib import contextmanager
 from pathlib import Path
 from typing import Generator
 
+from aniseek.config import config
 from aniseek.core.interfaces.source import IFrameSource
 from aniseek.core.sources.image import ImageSource
 from aniseek.core.sources.opencv import OpenCVVideoSource
 
-VIDEO_EXTENSIONS: tuple[str, ...] = (
-    ".mp4",
-    ".mkv",
-    ".avi",
-    ".mov",
-    ".webm",
-    ".flv",
-    ".wmv",
-    ".m4v",
-    ".ts",
-)
+VIDEO_EXTENSIONS: tuple[str, ...] = config.video_extensions
 
 
 class SourceRegistry:
@@ -88,12 +79,19 @@ class SourceRegistry:
             self._video_source = old_video
             self._image_source = old_image
 
-    def create_source(self, path: str | Path, **kwargs) -> IFrameSource:
+    def create_source(
+        self,
+        path: str | Path,
+        *,
+        buffersize: int | None = None,
+        fps: float | None = None,
+    ) -> IFrameSource:
         """Resolve and instantiate the appropriate IFrameSource based on path.
 
         Args:
             path (str | Path): Path to a video file or image directory.
-            **kwargs: Extra arguments forwarded to the source constructor (e.g. fps).
+            buffersize (int | None): Buffer size for the frame source (defaults to config.buffersize).
+            fps (float | None): Optional FPS override (defaults to detected video FPS or config.image_fps).
 
         Returns:
             IFrameSource: Instantiated frame source.
@@ -102,12 +100,14 @@ class SourceRegistry:
             FileNotFoundError: If the path does not exist.
             ValueError: If the file extension is not a recognized video format.
         """
+        actual_buffersize = buffersize if buffersize is not None else config.buffersize
         p = Path(path)
         if p.is_dir():
-            return self._image_source(p, **kwargs)
+            actual_fps = fps if fps is not None else config.image_fps
+            return self._image_source(p, buffersize=actual_buffersize, fps=actual_fps)
 
         if p.suffix.lower() in VIDEO_EXTENSIONS:
-            return self._video_source(p, **kwargs)
+            return self._video_source(p, buffersize=actual_buffersize, fps=fps)
 
         if p.suffix:
             raise ValueError(
@@ -115,7 +115,7 @@ class SourceRegistry:
                 f"Expected one of: {', '.join(VIDEO_EXTENSIONS)}"
             )
 
-        return self._video_source(p, **kwargs)
+        return self._video_source(p, buffersize=actual_buffersize, fps=fps)
 
 
 source_registry = SourceRegistry()
