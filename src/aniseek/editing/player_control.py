@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 from loguru import logger
 from numpy import ndarray
 
@@ -7,18 +9,18 @@ from aniseek.core.interfaces.buffer import IVideoBuffer
 
 
 class PlayerControl:
-    def __init__(self, servant: IVideoBuffer = None, master: IVideoBuffer = None):
-        self.servant = servant
-        self.master = master
+    def __init__(self, servant: IVideoBuffer | None = None, master: IVideoBuffer | None = None) -> None:
+        self.servant: IVideoBuffer = servant  # type: ignore[assignment]
+        self.master: IVideoBuffer = master  # type: ignore[assignment]
 
-        self.__vbright = None
-        self.__vbleft = None
-        self.__define_buffers(servant, master)
+        self.__vbright: IVideoBuffer = None  # type: ignore[assignment]
+        self.__vbleft: IVideoBuffer = None  # type: ignore[assignment]
+        self.__define_buffers(servant, master)  # type: ignore[arg-type]
 
-        self.frame_id = None
+        self.frame_id: int | None = None
         self.__quit = False
         self.__paused = False
-        self.__frame = None
+        self.__frame: ndarray | None = None
         self.__read = False
         self.__can_update_frame = True
         self.__can_collect = True
@@ -27,13 +29,13 @@ class PlayerControl:
         self.__current_delay = self.__delay
         self.old = None
 
-    def __define_buffers(self, servant: IVideoBuffer, master: IVideoBuffer):
+    def __define_buffers(self, servant: IVideoBuffer, master: IVideoBuffer) -> None:
         if isinstance(servant, VideoBufferRight):
             self.__vbright, self.__vbleft = self.servant, self.master
         else:
             self.__vbright, self.__vbleft = self.master, self.servant
 
-    def __speed(self, delay) -> float | None:
+    def __speed(self, delay: int) -> float | None:
         """
         Método que calcula a velocidade de reprodução do vídeo para
         delay diferente de zero
@@ -43,6 +45,7 @@ class PlayerControl:
         """
         if delay > 0:
             return self.__default_delay / delay
+        return None
 
     def __adjust_delay(self, delta: int) -> int | None:
         """
@@ -61,6 +64,7 @@ class PlayerControl:
         elif not flag_delay and self.__current_delay + delta > 0:
             self.__current_delay += delta
             return self.__current_delay
+        return None
 
     def __can_collect_frame(self) -> bool:
         return (
@@ -82,12 +86,12 @@ class PlayerControl:
         """
         if self.__can_collect_frame():
             logger.trace(f'Collecting frame {self.frame_id}')
-            self.master.put(self.frame_id, self.__frame)
+            self.master.put(self.frame_id, self.__frame)  # type: ignore[arg-type]
             if self.servant.is_task_complete():
                 self.frame_id = None
                 self.__frame = None
 
-    def __opencv_format(self, frame: ndarray) -> tuple[bool, ndarray | None]:
+    def __opencv_format(self, frame: ndarray | None) -> tuple[bool, ndarray | None]:
         """
         Faz a converção para retornar o mesmo tipo que `cv2.VideoCapture.read`.
 
@@ -101,8 +105,8 @@ class PlayerControl:
         if isinstance(frame, ndarray):
             logger.opt(lazy=True).trace(
                 'servant: {s} | master: {m}',
-                s=lambda: [x[0] for x in self.servant._buffer._primary[:10]],
-                m=lambda: [x[0] for x in self.master._buffer._primary[:10]],
+                s=lambda: [x[0] for x in self.servant._buffer._primary][:10],
+                m=lambda: [x[0] for x in self.master._buffer._primary][:10],
             )
             return True, frame
         return False, None
@@ -127,7 +131,7 @@ class PlayerControl:
         if self.servant.is_task_complete():
             return False, None
         elif self.can_update_frame():
-            self.update_frame(*self.servant.get())
+            self.update_frame(*self.servant.get())  # type: ignore[arg-type]
         return self.__opencv_format(self.__frame)
 
     def rewind(self) -> None:
@@ -256,15 +260,15 @@ class PlayerControl:
             self.frame_id = None
             return frame_id, frame
         elif not self.servant.is_task_complete():
-            ret, frame = self.read()
+            ret, frame = self.read()  # type: ignore[assignment]
             if ret is True:
                 return self.remove_frame()
         return None, None
 
-    def __speed_read(self, servant: IVideoBuffer, master: IVideoBuffer):
+    def __speed_read(self, servant: IVideoBuffer, master: IVideoBuffer) -> bool:
         if not servant.is_task_complete():
-            self.update_frame(*servant.get())
-            master.put(self.frame_id, self.__frame)
+            self.update_frame(*servant.get())  # type: ignore[arg-type]
+            master.put(self.frame_id, self.__frame)  # type: ignore[arg-type]
             return True
         return False
 
@@ -280,14 +284,14 @@ class PlayerControl:
         `VideoBufferLeft`
         """
         servant, master = self.__vbleft, self.__vbright
-        fid = servant[0]
+        fid = servant[0]  # type: ignore[index]
         if fid is None:
             return False
         elif fid < frame_id:
             return True
 
         while self.__speed_read(servant, master):
-            if servant[0] is not None and servant[0] < frame_id:
+            if servant[0] is not None and servant[0] < frame_id:  # type: ignore[index]
                 break
         return True
 
@@ -299,27 +303,27 @@ class PlayerControl:
         'end_frame'
         """
         servant, master = self.__vbright, self.__vbleft
-        fid = servant[0]
+        fid = servant[0]  # type: ignore[index]
         if fid is None:
             return False
         elif fid > frame_id:
             return True
         while self.__speed_read(servant, master):
-            if servant[0] is not None and servant[0] > frame_id:
+            if servant[0] is not None and servant[0] > frame_id:  # type: ignore[index]
                 break
         return True
 
     def _is_valid_backward(self, frame_id: int) -> bool:
         buffer = self.__vbleft
-        end_frame = buffer[0]
+        end_frame = buffer[0]  # type: ignore[index]
         if end_frame is None:
             return False
 
-        first_frame = buffer.mapper_id(0)
-        start_frame = buffer.start_frame()
+        first_frame = buffer.mapper_id(0)  # type: ignore[union-attr]
+        start_frame = buffer.start_frame()  # type: ignore[union-attr]
         if first_frame == start_frame and end_frame > frame_id:
             return True
-        return start_frame < frame_id and end_frame > frame_id
+        return start_frame < frame_id and end_frame > frame_id  # type: ignore[operator]
 
     def __set_frame(self, frame_id) -> None:
         if isinstance(self.servant, VideoBufferRight):
@@ -363,10 +367,10 @@ class PlayerControl:
         """Retorna o VideoBufferLeft."""
         if isinstance(self.master, VideoBufferLeft):
             return self.master
-        return self.servant
+        return self.servant  # type: ignore[return-value]
 
     def get_buffer_right(self) -> VideoBufferRight:
         """Retorna o VideoBufferRight."""
         if isinstance(self.master, VideoBufferRight):
             return self.master
-        return self.servant
+        return self.servant  # type: ignore[return-value]
