@@ -11,6 +11,7 @@ from aniseek.view.input_handler import (
     KeyModifierState,
     PynputKeyReader,
 )
+from aniseek.view.interfaces.command import ButtonState
 from aniseek.view.interfaces.input import InputHandler
 from aniseek.view.shortcuts import (
     CV2_SHORTCUTS,
@@ -197,6 +198,10 @@ def test_shortcuts_mapping():
     assert PYNPUT_SHORTCUTS[InputHandler.CTRL_BIT | ord("w")] == "SaveCommand"
     assert PYNPUT_SHORTCUTS[InputHandler.SHIFT_BIT | ord("w")] == "SaveCommand"
     assert PYNPUT_SHORTCUTS[ord("W")] == "SaveCommand"
+    assert CV2_SHORTCUTS[InputHandler.KEY_RIGHT] == "DynamicProceedCommand"
+    assert CV2_SHORTCUTS[InputHandler.KEY_LEFT] == "DynamicRewindCommand"
+    assert PYNPUT_SHORTCUTS[InputHandler.KEY_RIGHT] == "DynamicProceedCommand"
+    assert PYNPUT_SHORTCUTS[InputHandler.KEY_LEFT] == "DynamicRewindCommand"
 
 
 @pytest.mark.parametrize(
@@ -222,4 +227,50 @@ def test_pynput_key_reader_numpad_keys(vk, expected_code):
         with patch("aniseek.view.input_handler.cv2.waitKey", return_value=-1):
             code = reader.get_code(30)
             assert code == expected_code
+        reader.join()
+
+
+@pytest.mark.parametrize(
+    ("key", "expected_code"),
+    [
+        (keyboard.Key.left, InputHandler.KEY_LEFT),
+        (keyboard.Key.right, InputHandler.KEY_RIGHT),
+        (keyboard.Key.up, InputHandler.KEY_UP),
+        (keyboard.Key.down, InputHandler.KEY_DOWN),
+    ],
+    ids=["arrow_left", "arrow_right", "arrow_up", "arrow_down"],
+)
+def test_pynput_key_reader_arrow_keys(key, expected_code):
+    """Verifica decodificação de teclas direcionais mapeadas pelo pynput."""
+    with patch("aniseek.view.input_handler.keyboard.Listener"):
+        reader = PynputKeyReader()
+        reader._on_press(key)
+        reader._on_release(key)
+
+        with patch("aniseek.view.input_handler.cv2.waitKey", return_value=-1):
+            code = reader.get_code(30)
+            assert code == expected_code
+        reader.join()
+
+
+def test_pynput_key_reader_get_event_lifecycle():
+    """Verifica o ciclo completo de eventos PRESS, HOLD e RELEASE no get_event."""
+    with patch("aniseek.view.input_handler.keyboard.Listener"):
+        reader = PynputKeyReader()
+        reader._on_press(keyboard.Key.right)
+
+        with patch("aniseek.view.input_handler.cv2.waitKey", return_value=-1):
+            event_press = reader.get_event(30)
+            assert event_press == (InputHandler.KEY_RIGHT, ButtonState.PRESS)
+
+            event_hold = reader.get_event(30)
+            assert event_hold == (InputHandler.KEY_RIGHT, ButtonState.HOLD)
+
+            reader._on_release(keyboard.Key.right)
+
+            event_release = reader.get_event(30)
+            assert event_release == (InputHandler.KEY_RIGHT, ButtonState.RELEASE)
+
+            event_none = reader.get_event(30)
+            assert event_none is None
         reader.join()

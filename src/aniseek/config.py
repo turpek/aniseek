@@ -17,6 +17,8 @@ DEFAULT_VIDEO_EXTENSIONS: tuple[str, ...] = (
     ".m4v",
     ".ts",
 )
+DEFAULT_HOLD_DELAY: float = 0.15
+DEFAULT_HOLD_INTERVAL: float = 1.0 / 30
 DEFAULT_IMAGE_EXTENSIONS: tuple[str, ...] = (
     ".png",
     ".jpg",
@@ -34,6 +36,8 @@ class Config:
         self._image_fps: float = DEFAULT_IMAGE_FPS
         self._video_extensions: tuple[str, ...] = DEFAULT_VIDEO_EXTENSIONS
         self._image_extensions: tuple[str, ...] = DEFAULT_IMAGE_EXTENSIONS
+        self._hold_delay: float = DEFAULT_HOLD_DELAY
+        self._hold_interval: float = DEFAULT_HOLD_INTERVAL
 
     @property
     def buffersize(self) -> int:
@@ -75,12 +79,36 @@ class Config:
     def image_extensions(self, value: tuple[str, ...]) -> None:
         self._image_extensions = tuple(ext.lower() for ext in value)
 
+    @property
+    def hold_delay(self) -> float:
+        """Tempo de tolerância inicial antes de repetir tecla segurada (em segundos)."""
+        return self._hold_delay
+
+    @hold_delay.setter
+    def hold_delay(self, value: float) -> None:
+        if value < 0:
+            raise ValueError(f"hold_delay deve ser não-negativo, recebeu: {value}")
+        self._hold_delay = float(value)
+
+    @property
+    def hold_interval(self) -> float:
+        """Intervalo entre repetições contínuas quando a tecla é mantida pressionada (em segundos)."""
+        return self._hold_interval
+
+    @hold_interval.setter
+    def hold_interval(self, value: float) -> None:
+        if value <= 0:
+            raise ValueError(f"hold_interval deve ser positivo, recebeu: {value}")
+        self._hold_interval = float(value)
+
     def reset(self) -> None:
         """Restaura todas as configurações para seus valores padrão de fábrica."""
         self._buffersize = DEFAULT_BUFFERSIZE
         self._image_fps = DEFAULT_IMAGE_FPS
         self._video_extensions = DEFAULT_VIDEO_EXTENSIONS
         self._image_extensions = DEFAULT_IMAGE_EXTENSIONS
+        self._hold_delay = DEFAULT_HOLD_DELAY
+        self._hold_interval = DEFAULT_HOLD_INTERVAL
 
     @contextmanager
     def __call__(self, **kwargs: Any) -> Generator[Config, None, None]:
