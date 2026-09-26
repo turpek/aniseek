@@ -6,6 +6,7 @@ from time import sleep
 import cv2
 from loguru import logger
 
+from aniseek.config import config
 from aniseek.core.interfaces.source import IFrameSource
 from aniseek.core.sources.registry import source_registry
 from aniseek.editing.manager import VideoManager
@@ -16,6 +17,8 @@ from aniseek.view.interfaces.input import InputHandler
 from aniseek.view.shortcuts import PYNPUT_SHORTCUTS, SHORTCUTS
 from aniseek.view.video_command import (
     DecreaseSpeedCommand,
+    DynamicProceedCommand,
+    DynamicRewindCommand,
     IncreaseSpeedCommand,
     Invoker,
     JoinSectionCommand,
@@ -189,33 +192,41 @@ class FrameViewer:
             self._show(frame)
         self._update_title()
         delay = self.__video_manager.player.delay
-        return self.control(self.__key_reader.get_code(delay), ButtonState.PRESS)
+        event = self.__key_reader.get_event(delay)
+        if event is not None:
+            key, state = event
+            return self.control(key, state)
+        return -1
 
     def set_commands(self, video_controller: VideoController) -> None:
+        delay = config.hold_delay
+        interval = config.hold_interval
 
         command = self.command
         command.set_command('PauseCommand', PauseCommand(video_controller))
         command.set_command('QuitCommand', QuitCommand(video_controller))
-        command.set_command('RewindCommand', RewindCommand(video_controller))
-        command.set_command('ProceesCommand', ProceesCommand(video_controller))
-        command.set_command('IncreaseSpeedCommand', IncreaseSpeedCommand(video_controller))
-        command.set_command('DecreaseSpeedCommand', DecreaseSpeedCommand(video_controller))
+        command.set_command('RewindCommand', RewindCommand(video_controller, delay=delay, interval=interval))
+        command.set_command('ProceesCommand', ProceesCommand(video_controller, delay=delay, interval=interval))
+        command.set_command('IncreaseSpeedCommand', IncreaseSpeedCommand(video_controller, delay=delay, interval=interval))
+        command.set_command('DecreaseSpeedCommand', DecreaseSpeedCommand(video_controller, delay=delay, interval=interval))
         command.set_command('PauseDelayCommand', PauseDelayCommand(video_controller))
         command.set_command('RestoreDelayCommand', RestoreDelayCommand(video_controller))
-        command.set_command('RemoveFrameCommand', RemoveFrameCommand(video_controller))
-        command.set_command('UndoFrameCommand', UndoFrameCommand(video_controller))
-        command.set_command('NextVideoCommand', NextVideoCommand(video_controller))
-        command.set_command('PrevVideoCommand', PrevVideoCommand(video_controller))
-        command.set_command('NextSectionCommand', NextSectionCommand(video_controller))
-        command.set_command('PrevSectionCommand', PrevSectionCommand(video_controller))
-        command.set_command('SplitSectionCommand', SplitSectionCommand(video_controller))
-        command.set_command('UndoSectionCommand', UndoSectionCommand(video_controller))
-        command.set_command('JoinSectionCommand', JoinSectionCommand(video_controller))
-        command.set_command('RemoveSectionCommand', RemoveSectionCommand(video_controller))
-        command.set_command('JumpSectionStartCommand', JumpSectionStartCommand(video_controller))
-        command.set_command('JumpSectionEndCommand', JumpSectionEndCommand(video_controller))
+        command.set_command('RemoveFrameCommand', RemoveFrameCommand(video_controller, delay=delay, interval=interval))
+        command.set_command('UndoFrameCommand', UndoFrameCommand(video_controller, delay=delay, interval=interval))
+        command.set_command('NextVideoCommand', NextVideoCommand(video_controller, delay=delay, interval=interval))
+        command.set_command('PrevVideoCommand', PrevVideoCommand(video_controller, delay=delay, interval=interval))
+        command.set_command('NextSectionCommand', NextSectionCommand(video_controller, delay=delay, interval=interval))
+        command.set_command('PrevSectionCommand', PrevSectionCommand(video_controller, delay=delay, interval=interval))
+        command.set_command('SplitSectionCommand', SplitSectionCommand(video_controller, delay=delay, interval=interval))
+        command.set_command('UndoSectionCommand', UndoSectionCommand(video_controller, delay=delay, interval=interval))
+        command.set_command('JoinSectionCommand', JoinSectionCommand(video_controller, delay=delay, interval=interval))
+        command.set_command('RemoveSectionCommand', RemoveSectionCommand(video_controller, delay=delay, interval=interval))
+        command.set_command('JumpSectionStartCommand', JumpSectionStartCommand(video_controller, delay=delay, interval=interval))
+        command.set_command('JumpSectionEndCommand', JumpSectionEndCommand(video_controller, delay=delay, interval=interval))
         command.set_command('TogglePreviewCommand', TogglePreviewCommand(video_controller))
         command.set_command('SaveCommand', SaveCommand(video_controller))
+        command.set_command('DynamicProceedCommand', DynamicProceedCommand(video_controller))
+        command.set_command('DynamicRewindCommand', DynamicRewindCommand(video_controller))
 
     def control(self, key, state: ButtonState):
         shortcut_key = self.__shortcuts.get(key, key)

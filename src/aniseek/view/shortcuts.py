@@ -18,6 +18,8 @@ CV2_SHORTCUTS: dict[int, str] = {
     # Frame operations (no modifier)
     ord('d'): 'ProceesCommand',
     ord('a'): 'RewindCommand',
+    IP.KEY_RIGHT: 'DynamicProceedCommand',
+    IP.KEY_LEFT: 'DynamicRewindCommand',
     ord('x'): 'RemoveFrameCommand',
     ord('u'): 'UndoFrameCommand',
     # Section operations (with Shift or Uppercase)
@@ -57,6 +59,8 @@ PYNPUT_SHORTCUTS: dict[int, str] = {
     # Frame operations (no modifier)
     ord('d'): 'ProceesCommand',
     ord('a'): 'RewindCommand',
+    IP.KEY_RIGHT: 'DynamicProceedCommand',
+    IP.KEY_LEFT: 'DynamicRewindCommand',
     ord('x'): 'RemoveFrameCommand',
     ord('u'): 'UndoFrameCommand',
     # Section operations (with Ctrl)

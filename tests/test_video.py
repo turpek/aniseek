@@ -301,3 +301,23 @@ def test_macro_command_bound_to_viewer(mycap, creating_window):
     viewer.control(ord('z'), ButtonState.PRESS)
     assert executed == ['step_1', 'step_2']
     viewer.join()
+
+
+def test_frame_viewer_directional_right_triggers_dynamic_proceed(mycap, creating_window):
+    """Verifica que a tecla direcional direita dispara o DynamicProceedCommand."""
+    source = OpenCVVideoSource('test_video.mp4')
+    viewer = FrameViewer(source)
+    with patch.object(viewer._FrameViewer__video_controller, 'proceed') as mock_proceed:
+        viewer.control(IP.KEY_RIGHT, ButtonState.PRESS)
+        mock_proceed.assert_called_once()
+    viewer.join()
+
+
+def test_frame_viewer_directional_left_triggers_dynamic_rewind(mycap, creating_window):
+    """Verifica que a tecla direcional esquerda dispara o DynamicRewindCommand."""
+    source = OpenCVVideoSource('test_video.mp4')
+    viewer = FrameViewer(source)
+    with patch.object(viewer._FrameViewer__video_controller, 'rewind') as mock_rewind:
+        viewer.control(IP.KEY_LEFT, ButtonState.PRESS)
+        mock_rewind.assert_called_once()
+    viewer.join()

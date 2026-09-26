@@ -6,6 +6,27 @@ from aniseek.view.interfaces.command import ButtonState, Command
 from aniseek.view.video_controller import VideoController
 
 
+class HoldTimer:
+    def __init__(self, delay: float = 0.15, interval: float = 1.0 / 30):
+        self.delay = delay
+        self.interval = interval
+        self._target: float | None = None
+
+    def activate(self) -> None:
+        self._target = time.perf_counter() + self.delay
+
+    def collapsed(self) -> bool:
+        if self._target is None:
+            return False
+        return time.perf_counter() >= self._target
+
+    def reactivate(self) -> None:
+        self._target = time.perf_counter() + self.interval
+
+    def stop(self) -> None:
+        self._target = None
+
+
 class PauseCommand(Command):
     def __init__(self, receiver: VideoController):
         self.receiver = receiver
@@ -15,19 +36,39 @@ class PauseCommand(Command):
 
 
 class RewindCommand(Command):
-    def __init__(self, receiver: VideoController):
+    def __init__(self, receiver: VideoController, delay: float = 0.15, interval: float = 1.0 / 30):
         self.receiver = receiver
+        self.timer = HoldTimer(delay, interval)
 
     def on_press(self) -> None:
         self.receiver.rewind()
+        self.timer.activate()
+
+    def on_hold(self) -> None:
+        if self.timer.collapsed():
+            self.receiver.rewind()
+            self.timer.reactivate()
+
+    def on_release(self) -> None:
+        self.timer.stop()
 
 
 class ProceesCommand(Command):
-    def __init__(self, receiver: VideoController):
+    def __init__(self, receiver: VideoController, delay: float = 0.15, interval: float = 1.0 / 30):
         self.receiver = receiver
+        self.timer = HoldTimer(delay, interval)
 
     def on_press(self) -> None:
         self.receiver.proceed()
+        self.timer.activate()
+
+    def on_hold(self) -> None:
+        if self.timer.collapsed():
+            self.receiver.proceed()
+            self.timer.reactivate()
+
+    def on_release(self) -> None:
+        self.timer.stop()
 
 
 class QuitCommand(Command):
@@ -39,19 +80,39 @@ class QuitCommand(Command):
 
 
 class IncreaseSpeedCommand(Command):
-    def __init__(self, receiver: VideoController):
+    def __init__(self, receiver: VideoController, delay: float = 0.15, interval: float = 1.0 / 30):
         self.receiver = receiver
+        self.timer = HoldTimer(delay, interval)
 
     def on_press(self) -> None:
         self.receiver.increase_speed()
+        self.timer.activate()
+
+    def on_hold(self) -> None:
+        if self.timer.collapsed():
+            self.receiver.increase_speed()
+            self.timer.reactivate()
+
+    def on_release(self) -> None:
+        self.timer.stop()
 
 
 class DecreaseSpeedCommand(Command):
-    def __init__(self, receiver: VideoController):
+    def __init__(self, receiver: VideoController, delay: float = 0.15, interval: float = 1.0 / 30):
         self.receiver = receiver
+        self.timer = HoldTimer(delay, interval)
 
     def on_press(self) -> None:
         self.receiver.decrease_speed()
+        self.timer.activate()
+
+    def on_hold(self) -> None:
+        if self.timer.collapsed():
+            self.receiver.decrease_speed()
+            self.timer.reactivate()
+
+    def on_release(self) -> None:
+        self.timer.stop()
 
 
 class PauseDelayCommand(Command):
@@ -71,99 +132,219 @@ class RestoreDelayCommand(Command):
 
 
 class RemoveFrameCommand(Command):
-    def __init__(self, receiver: VideoController):
+    def __init__(self, receiver: VideoController, delay: float = 0.15, interval: float = 1.0 / 30):
         self.receiver = receiver
+        self.timer = HoldTimer(delay, interval)
 
     def on_press(self) -> None:
         self.receiver.remove_frame()
+        self.timer.activate()
+
+    def on_hold(self) -> None:
+        if self.timer.collapsed():
+            self.receiver.remove_frame()
+            self.timer.reactivate()
+
+    def on_release(self) -> None:
+        self.timer.stop()
 
 
 class UndoFrameCommand(Command):
-    def __init__(self, receiver: VideoController):
+    def __init__(self, receiver: VideoController, delay: float = 0.15, interval: float = 1.0 / 30):
         self.receiver = receiver
+        self.timer = HoldTimer(delay, interval)
 
     def on_press(self) -> None:
         self.receiver.undo()
+        self.timer.activate()
+
+    def on_hold(self) -> None:
+        if self.timer.collapsed():
+            self.receiver.undo()
+            self.timer.reactivate()
+
+    def on_release(self) -> None:
+        self.timer.stop()
 
 
 class NextVideoCommand(Command):
-    def __init__(self, receiver: VideoController):
+    def __init__(self, receiver: VideoController, delay: float = 0.15, interval: float = 1.0 / 30):
         self.receiver = receiver
+        self.timer = HoldTimer(delay, interval)
 
     def on_press(self) -> None:
         self.receiver.next_video()
+        self.timer.activate()
+
+    def on_hold(self) -> None:
+        if self.timer.collapsed():
+            self.receiver.next_video()
+            self.timer.reactivate()
+
+    def on_release(self) -> None:
+        self.timer.stop()
 
 
 class PrevVideoCommand(Command):
-    def __init__(self, receiver: VideoController):
+    def __init__(self, receiver: VideoController, delay: float = 0.15, interval: float = 1.0 / 30):
         self.receiver = receiver
+        self.timer = HoldTimer(delay, interval)
 
     def on_press(self) -> None:
         self.receiver.prev_video()
+        self.timer.activate()
+
+    def on_hold(self) -> None:
+        if self.timer.collapsed():
+            self.receiver.prev_video()
+            self.timer.reactivate()
+
+    def on_release(self) -> None:
+        self.timer.stop()
 
 
 class NextSectionCommand(Command):
-    def __init__(self, receiver: VideoController):
+    def __init__(self, receiver: VideoController, delay: float = 0.15, interval: float = 1.0 / 30):
         self.receiver = receiver
+        self.timer = HoldTimer(delay, interval)
 
     def on_press(self) -> None:
         self.receiver.next_section()
+        self.timer.activate()
+
+    def on_hold(self) -> None:
+        if self.timer.collapsed():
+            self.receiver.next_section()
+            self.timer.reactivate()
+
+    def on_release(self) -> None:
+        self.timer.stop()
 
 
 class PrevSectionCommand(Command):
-    def __init__(self, receiver: VideoController):
+    def __init__(self, receiver: VideoController, delay: float = 0.15, interval: float = 1.0 / 30):
         self.receiver = receiver
+        self.timer = HoldTimer(delay, interval)
 
     def on_press(self) -> None:
         self.receiver.prev_section()
+        self.timer.activate()
+
+    def on_hold(self) -> None:
+        if self.timer.collapsed():
+            self.receiver.prev_section()
+            self.timer.reactivate()
+
+    def on_release(self) -> None:
+        self.timer.stop()
 
 
 class RemoveSectionCommand(Command):
-    def __init__(self, receiver: VideoController):
+    def __init__(self, receiver: VideoController, delay: float = 0.15, interval: float = 1.0 / 30):
         self.receiver = receiver
+        self.timer = HoldTimer(delay, interval)
 
     def on_press(self) -> None:
         self.receiver.remove_section()
+        self.timer.activate()
+
+    def on_hold(self) -> None:
+        if self.timer.collapsed():
+            self.receiver.remove_section()
+            self.timer.reactivate()
+
+    def on_release(self) -> None:
+        self.timer.stop()
 
 
 class SplitSectionCommand(Command):
-    def __init__(self, receiver: VideoController):
+    def __init__(self, receiver: VideoController, delay: float = 0.15, interval: float = 1.0 / 30):
         self.receiver = receiver
+        self.timer = HoldTimer(delay, interval)
 
     def on_press(self) -> None:
         self.receiver.split_section()
+        self.timer.activate()
+
+    def on_hold(self) -> None:
+        if self.timer.collapsed():
+            self.receiver.split_section()
+            self.timer.reactivate()
+
+    def on_release(self) -> None:
+        self.timer.stop()
 
 
 class UndoSectionCommand(Command):
-    def __init__(self, receiver: VideoController):
+    def __init__(self, receiver: VideoController, delay: float = 0.15, interval: float = 1.0 / 30):
         self.receiver = receiver
+        self.timer = HoldTimer(delay, interval)
 
     def on_press(self) -> None:
         self.receiver.undo_section()
+        self.timer.activate()
+
+    def on_hold(self) -> None:
+        if self.timer.collapsed():
+            self.receiver.undo_section()
+            self.timer.reactivate()
+
+    def on_release(self) -> None:
+        self.timer.stop()
 
 
 class JoinSectionCommand(Command):
-    def __init__(self, receiver: VideoController):
+    def __init__(self, receiver: VideoController, delay: float = 0.15, interval: float = 1.0 / 30):
         self.receiver = receiver
+        self.timer = HoldTimer(delay, interval)
 
     def on_press(self) -> None:
         self.receiver.join_section()
+        self.timer.activate()
+
+    def on_hold(self) -> None:
+        if self.timer.collapsed():
+            self.receiver.join_section()
+            self.timer.reactivate()
+
+    def on_release(self) -> None:
+        self.timer.stop()
 
 
 class JumpSectionStartCommand(Command):
-    def __init__(self, receiver: VideoController):
+    def __init__(self, receiver: VideoController, delay: float = 0.15, interval: float = 1.0 / 30):
         self.receiver = receiver
+        self.timer = HoldTimer(delay, interval)
 
     def on_press(self) -> None:
         self.receiver.jump_section_start()
+        self.timer.activate()
+
+    def on_hold(self) -> None:
+        if self.timer.collapsed():
+            self.receiver.jump_section_start()
+            self.timer.reactivate()
+
+    def on_release(self) -> None:
+        self.timer.stop()
 
 
 class JumpSectionEndCommand(Command):
-    def __init__(self, receiver: VideoController):
+    def __init__(self, receiver: VideoController, delay: float = 0.15, interval: float = 1.0 / 30):
         self.receiver = receiver
+        self.timer = HoldTimer(delay, interval)
 
     def on_press(self) -> None:
         self.receiver.jump_section_end()
+        self.timer.activate()
+
+    def on_hold(self) -> None:
+        if self.timer.collapsed():
+            self.receiver.jump_section_end()
+            self.timer.reactivate()
+
+    def on_release(self) -> None:
+        self.timer.stop()
 
 
 class TogglePreviewCommand(Command):
