@@ -349,3 +349,36 @@ def test_video_reader_from_default_uses_global_config(tmp_path, monkeypatch, moc
         with VideoReader.from_default(dummy_video, start=0, end=5) as reader:
             assert reader.buffersize == 15
             assert reader.source.buffersize == 15
+
+
+@pytest.mark.parametrize(
+    ("input_buffersize", "expected_right", "expected_left"),
+    [
+        (10, 24, 72),
+        (60, 60, 180),
+    ],
+    ids=["buffersize_smaller_than_fps", "buffersize_larger_than_fps"],
+)
+def test_video_reader_adaptive_buffersize(
+    synthetic_cap, input_buffersize, expected_right, expected_left
+):
+    """Calcula buffersize adaptativo respeitando o FPS da fonte e proporcao 3x para ré."""
+    with VideoReader(synthetic_cap, start=0, end=5, buffersize=input_buffersize) as reader:
+        assert reader.buffersize_right == expected_right
+        assert reader.buffersize_left == expected_left
+        assert reader.buf_right.buffersize == expected_right
+        assert reader.buf_left.buffersize == expected_left
+
+
+def test_forward_reader_adaptive_buffersize(synthetic_cap):
+    """Calcula buffersize_right com piso no FPS da fonte de video."""
+    with ForwardReader(synthetic_cap, start=0, end=5, buffersize=10) as reader:
+        assert reader.buffersize_right == 24
+        assert reader.buffer.buffersize == 24
+
+
+def test_reverse_reader_adaptive_buffersize(synthetic_cap):
+    """Calcula buffersize_left com piso em 3x o FPS da fonte de video."""
+    with ReverseReader(synthetic_cap, start=0, end=5, buffersize=10) as reader:
+        assert reader.buffersize_left == 72
+        assert reader.buffer.buffersize == 72
