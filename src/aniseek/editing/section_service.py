@@ -25,7 +25,7 @@ class SectionService:
                     return SectionManager.from_dict(val)
             return SectionManager([VideoSection(0, frame_count)])
         except FileNotFoundError:
-            logger.info(f"Arquivo {file_path} não encontrado. Criando template inicial em memória.")
+            logger.info(f"File {file_path} not found. Creating initial in-memory template.")
             return SectionManager([VideoSection(0, frame_count)])
 
     @staticmethod

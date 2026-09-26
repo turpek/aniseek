@@ -46,7 +46,7 @@ class VideoBufferRight(IVideoBuffer):
                  timeout: int = 1):
 
         # Definições das variaveis que lidam com o Thread
-        logger.debug('iniciando a classe')
+        logger.debug('Initializing VideoBufferRight')
         self.source = source
         self.cap = source
         self._frame_count = source.frame_count
@@ -100,7 +100,7 @@ class VideoBufferRight(IVideoBuffer):
             None
         """
         if self.thread is None:
-            logger.debug('iniciando a Thread')
+            logger.debug('Starting buffer thread')
             args = (self._buffer,)
             self.thread = Thread(target=reader, args=args)
             self.thread.start()
@@ -116,7 +116,7 @@ class VideoBufferRight(IVideoBuffer):
             int: Se o `FrameMapper` não estiver vazio
             None: Se o `FrameMapper` estiver vazio
         """
-        logger.debug('calculo do VideoBufferRight.__set_end_frame')
+        logger.debug('Calculating VideoBufferRight window range')
         if self.__mapping.empty():
             return None
 
@@ -186,7 +186,7 @@ class VideoBufferRight(IVideoBuffer):
             frame_id (int): id do frame a ser lido no próximo ciclo, ou seja, qu
 
         """
-        logger.debug(f"setando o frame de id '{frame_id}'")
+        logger.debug(f"Setting target frame id '{frame_id}'")
         if not isinstance(frame_id, int):
             raise TypeError('frame_id must be an integer.')
         elif frame_id < 0:
@@ -198,7 +198,7 @@ class VideoBufferRight(IVideoBuffer):
         self._buffer.no_block_task(True)
 
     def end_frame(self) -> int | None:
-        logger.debug("obtendo o end_frame")
+        logger.debug("Getting end_frame")
         if self.__mapping.empty():
             return None
 
@@ -225,7 +225,7 @@ class VideoBufferRight(IVideoBuffer):
                 return frame_ids[-1]
 
     def start_frame(self) -> int | None:
-        logger.debug("obtendo o start_frame")
+        logger.debug("Getting start_frame")
         if self.__mapping.empty():
             return None
         elif isinstance(self._set_frame, int):
@@ -238,10 +238,10 @@ class VideoBufferRight(IVideoBuffer):
 
     def run(self):
         if self.do_task():
-            logger.debug("tentativa de inicializar a task na thread")
+            logger.debug("Attempting to start reader task in thread")
             start_frame = self.start_frame()
             end_frame = self.end_frame()
-            logger.debug(f"start_frame set {start_frame}, end_frame set {end_frame}")
+            logger.debug(f"start_frame set to {start_frame}, end_frame set to {end_frame}")
 
             mapping = self.__mapping.get_mapping()
             values = (self.source, start_frame, end_frame, mapping)
@@ -286,7 +286,7 @@ class VideoBufferRight(IVideoBuffer):
                 frame_id (int): frame_id do frame a ser colocado no buffer.
                 frame (ndarray): frame a ser colocado no buffer.
         """
-        logger.debug(f"colocando '{frame_id}' no vbuffer")
+        logger.trace(f"Putting frame {frame_id} into vbuffer")
 
         if frame_id not in self.__mapping:
             raise VideoBufferError('frame_id does not belong to map')
@@ -306,12 +306,12 @@ class VideoBufferRight(IVideoBuffer):
         self._buffer.put((frame_id, frame))
 
     def get(self) -> tuple[int, ndarray | None]:
-        logger.debug("iniciativa de obtenção do frame")
+        logger.trace("Attempting to get frame from buffer")
         self.run()
         self._buffer.unqueue()
         frame_id, frame = self._buffer.get()
         self.__frame_id = frame_id
-        logger.debug(f"frame de id '{frame_id}' lido com sucesso!")
+        logger.trace(f"Frame {frame_id} read successfully")
         self.run()
 
         if isinstance(frame_id, int):

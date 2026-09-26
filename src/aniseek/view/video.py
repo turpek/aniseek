@@ -188,7 +188,7 @@ class FrameViewer:
 
     def show(self, flag, frame):
         if flag is True:
-            logger.info(f'exibindo o frame de id {self.frame_id}')
+            logger.trace(f'Displaying frame {self.frame_id}')
             self._show(frame)
         self._update_title()
         delay = self.__video_manager.player.delay

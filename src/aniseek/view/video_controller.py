@@ -105,7 +105,7 @@ class VideoController:
     def save(self, file_path: Path | str | None = None) -> None:
         """Salva o estado das seções explicitamente."""
         if self.__section_manager is None:
-            logger.warning("save: SectionManager não inicializado.")
+            logger.warning("save: SectionManager is not initialized.")
             return
 
         if file_path is not None:
@@ -123,7 +123,7 @@ class VideoController:
             target_path = Path('sections.json')
 
         self.video_manager.save_section(self.__section_manager, target_path, label)
-        logger.info(f"Seções salvas com sucesso em {target_path} [{label}]")
+        logger.info(f"Sections successfully saved to {target_path} [{label}]")
 
     def __save_section_manager(self):
         self.save()
@@ -168,7 +168,7 @@ class VideoController:
             frame_id, frame = self.__player.remove_frame()
             self.__mapper.remove(frame_id)
             self.__trash.move(frame_id, frame)
-            logger.debug(f'removido {frame_id}')
+            logger.debug(f'Removed frame {frame_id}')
 
             # O swap do buffer deve ocorrer quando o frame a ser removido estiver em alguma das
             # extremidades (inicio ou final do vídeo) e o buffer estiver na direção da extremidade
@@ -187,12 +187,12 @@ class VideoController:
             self.__player.servant._buffer.end_task.set()
             self.__player.servant._buffer.wait_task()
             frame_id, frame = self.__trash.undo()
-            logger.error(f'frame {frame_id} restored')
+            logger.info(f'Frame {frame_id} restored')
             self.__mapper.add(frame_id)
             self.__player.restore_frame(frame_id, frame)
             self.__player.undo_config()
         else:
-            logger.debug('unable to undo removal')
+            logger.debug('Unable to undo removal')
 
     def next_video(self):
         playlist = self.__playlist
@@ -200,9 +200,9 @@ class VideoController:
             self.__player.join()
             playlist.next_video()
             self.__open_video(self.video_manager, playlist.get_video_info())
-            logger.info(f'next_video: {playlist.video_name()}')
+            logger.info(f'Next video: {playlist.video_name()}')
         else:
-            logger.debug("it's already at the end of the playlist")
+            logger.debug("Already at the end of the playlist")
 
     def prev_video(self):
         playlist = self.__playlist
@@ -210,24 +210,24 @@ class VideoController:
             self.__player.join()
             playlist.prev_video()
             self.__open_video(self.video_manager, playlist.get_video_info())
-            logger.info(f'prev_video: {playlist.video_name()}')
+            logger.info(f'Previous video: {playlist.video_name()}')
         else:
-            logger.debug('is already at the beginning of the playlist')
+            logger.debug('Already at the beginning of the playlist')
 
     def split_section(self):
         if self.__is_preview:
-            logger.warning('split_section: não permitido no modo preview.')
+            logger.warning('split_section: not allowed in preview mode.')
             return
-        logger.info('Dividindo a seção')
+        logger.debug('Splitting section')
         frame_id = self.__player.frame_id
         if not isinstance(frame_id, int):
-            logger.warning('split_section: frame_id não definido.')
+            logger.warning('split_section: frame_id is not defined.')
             return
 
         direction = -1 if self.__player.is_rewind else 1
 
         if not self.__section_manager.split_section(frame_id, self.__trash, direction=direction):
-            logger.warning(f'split_section: divisão rejeitada no frame {frame_id}.')
+            logger.warning(f'split_section: split rejected at frame {frame_id}.')
             return
 
         self.video_manager.create(self.__section_manager)
@@ -239,11 +239,11 @@ class VideoController:
 
     def next_section(self):
         if self.__is_preview:
-            logger.warning('next_section: não permitido no modo preview.')
+            logger.warning('next_section: not allowed in preview mode.')
             return
-        logger.debug('Próxima seção')
+        logger.debug('Next section')
         if not self.__section_manager.next_section(self.__trash):
-            logger.debug('next_section: já está na última seção.')
+            logger.debug('next_section: already at the last section.')
             return
         self.__player.proceed()
         self.video_manager.create(self.__section_manager)
@@ -253,11 +253,11 @@ class VideoController:
 
     def prev_section(self):
         if self.__is_preview:
-            logger.warning('prev_section: não permitido no modo preview.')
+            logger.warning('prev_section: not allowed in preview mode.')
             return
-        logger.debug('Seção anterior')
+        logger.debug('Previous section')
         if not self.__section_manager.prev_section(self.__trash):
-            logger.debug('prev_section: já está na primeira seção.')
+            logger.debug('prev_section: already at the first section.')
             return
         self.__player.rewind()
         self.video_manager.create(self.__section_manager)
@@ -267,9 +267,9 @@ class VideoController:
 
     def jump_section_start(self):
         if self.__is_preview:
-            logger.warning('jump_section_start: não permitido no modo preview.')
+            logger.warning('jump_section_start: not allowed in preview mode.')
             return
-        logger.debug('Saltando para o início da seção')
+        logger.debug('Jumping to section start')
         mapping = self.__section_manager.current_section.mapping
         if mapping:
             self.set_frame(mapping[0])
@@ -277,9 +277,9 @@ class VideoController:
 
     def jump_section_end(self):
         if self.__is_preview:
-            logger.warning('jump_section_end: não permitido no modo preview.')
+            logger.warning('jump_section_end: not allowed in preview mode.')
             return
-        logger.debug('Saltando para o fim da seção')
+        logger.debug('Jumping to section end')
         mapping = self.__section_manager.current_section.mapping
         if mapping:
             self.set_frame(mapping[-1])
@@ -287,7 +287,7 @@ class VideoController:
 
     def remove_section(self):
         if self.__is_preview:
-            logger.warning('remove_section: não permitido no modo preview.')
+            logger.warning('remove_section: not allowed in preview mode.')
             return
         if len(self.__section_manager.sections) <= 1:
             logger.debug('Cannot remove the last remaining section.')
@@ -303,15 +303,15 @@ class VideoController:
 
     def join_section(self):
         if self.__is_preview:
-            logger.warning('join_section: não permitido no modo preview.')
+            logger.warning('join_section: not allowed in preview mode.')
             return
-        logger.debug('Unindo seções')
+        logger.debug('Joining sections')
         secman = self.__section_manager
         can_prev = secman.can_join_prev()
         can_next = secman.can_join_next()
 
         if not can_prev and not can_next:
-            logger.debug('join_section: não há seções adjacentes para unir.')
+            logger.debug('join_section: no adjacent sections to join.')
             return
 
         if not can_prev:
@@ -324,10 +324,10 @@ class VideoController:
         curr_frame = self.__player.frame_id
 
         if not secman.join_section(self.__trash, direction=direction, frame_id=curr_frame):
-            logger.debug('join_section: falha ao unir seções.')
+            logger.debug('join_section: failed to join sections.')
             return
 
-        logger.debug('Seções unidas com sucesso.')
+        logger.info('Sections joined successfully.')
         self.video_manager.create(secman)
 
         mapping = secman.current_section.mapping
@@ -337,10 +337,10 @@ class VideoController:
 
     def undo_section(self):
         if self.__is_preview:
-            logger.warning('undo_section: não permitido no modo preview.')
+            logger.warning('undo_section: not allowed in preview mode.')
             return
         if self.__section_manager.restore_section(self.__trash):
-            logger.info('Desfazendo.')
+            logger.info('Undoing section action.')
             self.video_manager.create(self.__section_manager)
             mapping = self.__section_manager.current_section.mapping
             if mapping:
@@ -352,21 +352,21 @@ class VideoController:
                 self.set_frame(target_frame)
                 self.__player.set_read()
         else:
-            logger.info('Não foi possível desfazer.')
+            logger.info('Could not undo section action.')
 
     def toggle_preview(self):
-        logger.debug('Alternando modo preview')
+        logger.debug('Toggling preview mode')
         curr_frame = self.__player.frame_id
         is_rewind = self.__player.is_rewind
 
         self.__is_preview = not self.__is_preview
 
         if self.__is_preview:
-            logger.info('Modo preview ativado')
+            logger.info('Preview mode enabled')
             preview_mapping = self.__section_manager.get_preview_mapping()
             self.video_manager.create(self.__section_manager, mapping=preview_mapping)
         else:
-            logger.info('Modo preview desativado')
+            logger.info('Preview mode disabled')
             if isinstance(curr_frame, int):
                 self.__section_manager.goto_frame(curr_frame, self.__trash)
             self.video_manager.create(self.__section_manager)
