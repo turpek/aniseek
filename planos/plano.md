@@ -13,6 +13,11 @@ Este documento centraliza todos os objetivos arquiteturais, otimizações estrut
 - [x] 5. **Bugfix no `SectionManager.remove_section` / `VideoManager.create`:** Falha `AttributeError: 'NoneType' object has no attribute '_calculate_mapping'` ao remover seção quando pausado (`Ctrl + x`).
 - [x] 6. **Refatoração de Usabilidade das Seções & Modo Preview da Montagem Final (UX / Funcional).**
 - [x] 7. **Refatoração Arquitetural e Manutenibilidade do Subsistema de Seções (Clean Code / Arquitetura Interna).**
+- [ ] 8. **Otimização de Performance e Taxa de Leitura do Core (TTFF, Leitura Reversa e Benchmark).** [PRIORIDADE IMEDIATA]
+- [ ] 9. **Tipagem Estrita e Saneamento do Mypy (`mypy src`).**
+- [ ] 10. **Auditoria e Resolução dos 8 Testes Ignorados (`SKIPPED`).**
+- [ ] 11. **Limpeza de Código Morto e Estruturas Obsoletas em `editing` (`SimpleStack`).**
+- [ ] 12. **Melhorias Funcionais no `FrameViewer` (Navegação Go-To & OSD/HUD).**
 
 ---
 
@@ -237,3 +242,136 @@ Esta tarefa foca na modernização da arquitetura interna, eliminando acoplament
 
 ##### 4. Persistência Direta
 * Leitura de arquivo `.json` com geração automática de template quando não existir e salvamento atômico sem classes intermediárias de processo ou fábrica.
+
+---
+
+### Task 8: Otimização de Performance e Taxa de Leitura do Core (TTFF, Leitura Reversa e Benchmark)
+
+Esta tarefa foca estritamente em maximizar a taxa de leitura (throughput / FPS) e a responsividade temporal do motor de vídeo, eliminando gargalos reais diagnosticados por benchmark em CPU e I/O.
+
+#### 📋 Sub-lista de Objetivos da Tarefa 8
+
+- [ ] **8.1. Abertura Instantânea com Validação Lazy e Busca Binária de Fim de Vídeo (Resiliente a Falhas):**
+  - Eliminar o seek forçado até o fim do vídeo no construtor `OpenCVVideoSource.__init__`, reduzindo o TTFF de **~1.611 ms para ~60 ms** (ganho de **26x**).
+  - Implementar detecção inteligente ao receber `False`/`None` em `source.read()` durante a leitura.
+  - Implementar probe de tolerância de $X$ frames com `grab()` para descartar frames corrompidos pontuais (Caso 3) sem truncar o stream.
+  - Se o probe falhar (fim prematuro / metadados inflados — Caso 2), acionar busca binária delimitada em $O(\log N)$ seeks no intervalo `[last_valid, frame_count - 1]` para localizar com precisão matemática o verdadeiro frame final decodificável.
+  - Sincronização atômica de `_frame_count`, atualização de limites no `FrameMapper` e finalização limpa da task.
+- [ ] **8.2. Otimização de Throughput na Leitura Reversa (`VideoBufferLeft`):**
+  - Reduzir a discrepância entre a velocidade de avanço (**501 FPS**) e a velocidade de recuo (**190 FPS**).
+  - Otimizar o algoritmo de janelas e o pré-carregamento de blocos no leitor reverso para minimizar seeks redundantes que forçam o FFmpeg a decodificar Keyframes (GOP) repetidamente.
+- [ ] **8.3. Correção de Métricas no Script de Benchmark (`benchmarks/bench_core.py`):**
+  - Corrigir a função `bench_memory_gc` para utilizar `gc.get_stats()` em vez de `gc.get_count()`, reportando fielmente os ciclos reais de coleta de lixo.
+  - Manter suporte a persistência e comparação de resultados via `--save` e `--compare`.
+
+---
+
+#### Detalhamento Técnico da Tarefa 8 (Performance)
+
+##### 1. Validação Lazy e Busca Binária no `OpenCVVideoSource`
+* **Diagnóstico da Causa Raiz:** O método `_validate_frame_count()` executado no `__init__` realizava `cap.set(cv2.CAP_PROP_POS_FRAMES, frame_count - 1)`, forçando o FFmpeg a buscar o último Keyframe do arquivo, decodificar dezenas/centenas de frames intermediários até o fim para verificar `grab()`, e depois rebobinar para `POS_FRAMES = 0`. Esse ciclo custava **1,6 segundos inteiros** na abertura de qualquer vídeo.
+* **Abertura em Tempo O(1):** No `__init__`, a fonte aceita inicialmente o `frame_count` fornecido pelos metadados do container, abrindo em **~60 ms**.
+* **Tratamento de Anomalias de Fim de Arquivo e Corrupção:**
+  Ao receber retorno falso ou frame nulo (`ret == False` ou `frame is None`):
+  1. Se `frame_id >= source.frame_count`: Fim natural esperado da mídia (Caso 1).
+  2. Se `frame_id < source.frame_count`: Dispara o probe leve de tolerância executando até $X$ avanços rápidos via `grab()`:
+     - **Recuperação de Corrupção (Caso 3):** Se algum dos próximos $X$ frames for obtido com sucesso via `grab()`, trata-se de frame corrompido isolado; o cursor avança e a reprodução continua sem truncar o restante do vídeo.
+     - **Fim Prematuro do Vídeo (Caso 2):** Se todos os $X$ probes falharem, o vídeo encerrou antes da contagem do cabeçalho.
+  3. **Busca Binária Confinada:** Dispara busca binária no intervalo `[last_valid_frame, nominal_frame_count - 1]`. Em apenas $\lceil\log_2(\text{intervalo})\rceil$ passos (tipicamente 3 a 5 seeks), localiza o último frame decodificável exato.
+  4. **Propagação de Estado:** Atualiza `self._frame_count = true_end`, notifica o `FrameMapper` para ajustar seus índices e encerra o buffer com `end_task.set()`.
+
+##### 2. Aceleração da Leitura Reversa (`VideoBufferLeft`)
+* O leitor reverso opera em blocos de trás para frente. Quando cada bloco é requisitado, o `seek` no OpenCV força o decodificador a encontrar o I-frame anterior mais próximo na tabela de GOP.
+* Ao dimensionar as fatias de leitura reversa de forma mais ampla e alinhada à retenção de frames já decodificados no canal, diminui-se o número de seeks por segundo, aproximando o throughput reverso do patamar de 500 FPS.
+
+##### 3. Correção de Medição de Memória no Benchmark
+* A função `bench_memory_gc` utilizava `gc.get_count()`, que retorna o número de objetos pequenos rastreados na heap do Python, inflando artificialmente para "341 coletas de GC" um cenário onde ocorreram 0 coletas reais (pois arrays do NumPy são liberados instantaneamente via `Py_DECREF` em C).
+* A métrica passa a consultar `gc.get_stats()` para reportar com precisão as coletas de lixo das três gerações.
+
+---
+
+### Task 9: Tipagem Estrita e Saneamento do Mypy (`mypy src`)
+
+Esta tarefa visa atingir conformidade estrita de tipos em 100% do código-fonte do motor (`src/aniseek`), eliminando os 161 erros atualmente apontados pelo `mypy src`.
+
+#### 📋 Sub-lista de Objetivos da Tarefa 9
+
+- [ ] **9.1. Contrato Formal da Interface `IVideoBuffer`:**
+  - Adicionar formalmente na interface abstrata `IVideoBuffer` (`src/aniseek/core/interfaces/buffer.py`) as assinaturas com tipagem de:
+    - `get(timeout: float | None = None) -> tuple[int, ndarray] | None`
+    - `put(frame_id: int, frame: ndarray) -> None`
+    - `set() -> None` e `clear() -> None`
+    - Propriedade `is_task_complete -> bool`
+    - Propriedade ou método protegido `_buffer`
+  - Elimina mais de 25 erros de atributo indefinido em `PlayerControl`.
+- [ ] **9.2. Saneamento de Tipagem em `PlayerControl` e `VideoReader`:**
+  - Tipagem correta da alternância servant/master (`VideoBufferRight` $\leftrightarrow$ `VideoBufferLeft`) utilizando a interface base `IVideoBuffer`.
+  - Anotação explícita de variáveis de controle (`__current_frame_id`, `__current_frame: ndarray | None`).
+- [ ] **9.3. Conformidade PEP 484 em Assinaturas Opcionais:**
+  - Corrigir parâmetros com padrão `None` sem `| None` nas anotações (ex: `labels: list[str | None] | None = None` em `playlist.py` e `frame_ids: list[int] | None = None` em `manager.py`).
+  - Anotar explicitamente os atributos de coleção `__right_videos: list[VideoInfo]` e `__left_videos: list[VideoInfo]`.
+- [ ] **9.4. Saneamento no Módulo `view` (`VideoController` e `VideoCon`):**
+  - Tipagem estrita de referências ao `SectionManager` e `VideoManager` em `VideoController`.
+  - Resolução de incompatibilidades de tipo no manuseio de delay e frame format em `VideoCon`.
+- [ ] **9.5. Verificação Limpa:**
+  - Execução de `uv run mypy src` com 0 erros encontrados.
+
+---
+
+### Task 10: Auditoria e Resolução dos 8 Testes Ignorados (`SKIPPED`)
+
+Esta tarefa tem como objetivo auditar individualmente cada um dos 8 testes pulados na suíte do pytest, garantindo que nenhum teste permaneça esquecido ou ignorado sem justificativa técnica permanente.
+
+#### 📋 Sub-lista de Objetivos da Tarefa 10
+
+- [ ] **10.1. `tests/test_player_control.py:179`** (*"Não lembro o porque, desse teste passar"*):
+  - Inspecionar a lógica de teste de delay e fluxo do `PlayerControl`, ajustar para a API corrente e reativar.
+- [ ] **10.2. `tests/test_video.py:36` e `tests/test_video.py:43`** (*"deprecado"*):
+  - Verificar se referenciam interfaces de janela antigas do OpenCV GUI (`VideoCon`). Atualizar para a API corrente ou remover caso o método testado tenha sido formalmente expurgado.
+- [ ] **10.3. `tests/test_video.py:100`** (*"Por enquanto o programa está definido para receber None quando chega ao final"*):
+  - Validar contra a nova estratégia de término de vídeo da Task 8 e reativar com a asserção esperada.
+- [ ] **10.4. `tests/test_video.py:130`** (*"Fica para depois"*):
+  - Analisar o cenário pendente no `VideoCon`, implementar a cobertura e remover o `@pytest.mark.skip`.
+- [ ] **10.5. `tests/test_video_buffer_left.py:250` e `tests/test_video_buffer_left.py:423`** (*"pq sim"*):
+  - Auditar os fluxos de borda do buffer esquerdo, corrigir o teste e reativar.
+- [ ] **10.6. `tests/test_video_buffer_left.py:720`** (*"Verificar como a mudança do __frame_id no set influencia em is_task_complete"*):
+  - Validar a relação entre o reset de posição e o estado `is_task_complete`, consolidando a asserção determinística.
+- [ ] **10.7. Suíte 100% Verde e 0 Skipped:**
+  - Garantir que todos os 895 testes da suíte rodem e passem sem nenhum skip.
+
+---
+
+### Task 11: Limpeza de Código Morto e Estruturas Obsoletas em `editing` (`SimpleStack`)
+
+Esta tarefa elimina resquícios de arquitetura legada que se tornaram obsoletos após a conclusão da Task 7 (modernização do `SectionManager` para lista com cursor).
+
+#### 📋 Sub-lista de Objetivos da Tarefa 11
+
+- [ ] **11.1. Remoção da Classe `SimpleStack`:**
+  - Remover a implementação de `SimpleStack` de `src/aniseek/editing/utils.py`.
+  - Remover a exportação de `SimpleStack` em `src/aniseek/editing/__init__.py`.
+- [ ] **11.2. Remoção da Exceção `SimpleStackError`:**
+  - Remover a classe `SimpleStackError` de `src/aniseek/custom_exceptions.py`.
+- [ ] **11.3. Limpeza dos Testes Unitários de `SimpleStack`:**
+  - Remover os 10 testes dedicados em `tests/test_utils.py` que testavam exclusivamente a pilha obsoleta.
+- [ ] **11.4. Validação de Regressão:**
+  - Confirmar que nenhum outro módulo ou teste do projeto faz uso de `SimpleStack`.
+
+---
+
+### Task 12: Melhorias Funcionais no `FrameViewer` (Navegação Go-To & OSD/HUD)
+
+Esta tarefa agrega recursos de usabilidade e visualização profissional ao player interativo do `aniseek` (`VideoCon` / `VideoController`).
+
+#### 📋 Sub-lista de Objetivos da Tarefa 12
+
+- [ ] **12.1. Navegação Direta (Go-To Frame / Timecode — Atalho `g`):**
+  - Implementar comando de salto instantâneo para um frame específico (`frame_id`) ou timecode formatado (`HH:MM:SS:FF`).
+  - Reposicionar os buffers concorrentes suavemente preservando a direção ativa de reprodução.
+- [ ] **12.2. OSD / HUD Overlay Dinâmico (Atalho `h` ou `o`):**
+  - Implementar sobreposição visual leve diretamente no frame renderizado (ou título expandido):
+    - Taxa real de FPS de decodificação vs. FPS nominal.
+    - Ocupação percentual dos buffers esquerdo e direito.
+    - Timecode atual e duração total.
+    - Estado da seção (Seção X/Y, modo Preview ativo/inativo).
+  - Opção de alternar a visibilidade do overlay via tecla de atalho.
