@@ -146,11 +146,13 @@ class ForwardReader(BaseVideoReader):
             frames=frames,
             buffersize=buffersize,
         )
+        fps_val = round(self.fps) if self.fps and self.fps > 0 else 30
+        self.buffersize_right = max(self.buffersize, fps_val)
         self.buffer = VideoBufferRight(
             self.source,
             self.mapping,
             self.semaphore,
-            buffersize=self.buffersize,
+            buffersize=self.buffersize_right,
         )
         if len(self.frame_ids) > 0:
             self.buffer.run()
@@ -201,11 +203,13 @@ class ReverseReader(BaseVideoReader):
             frames=frames,
             buffersize=buffersize,
         )
+        fps_val = round(self.fps) if self.fps and self.fps > 0 else 30
+        self.buffersize_left = max(3 * self.buffersize, 3 * fps_val)
         self.buffer = VideoBufferLeft(
             self.source,
             self.mapping,
             self.semaphore,
-            buffersize=self.buffersize,
+            buffersize=self.buffersize_left,
         )
         if len(self.frame_ids) > 0:
             self.buffer.set(self.frame_ids[-1] + 1)
@@ -258,17 +262,20 @@ class VideoReader(BaseVideoReader):
             frames=frames,
             buffersize=buffersize,
         )
+        fps_val = round(self.fps) if self.fps and self.fps > 0 else 30
+        self.buffersize_right = max(self.buffersize, fps_val)
+        self.buffersize_left = max(3 * self.buffersize, 3 * fps_val)
         self.buf_right = VideoBufferRight(
             self.source,
             self.mapping,
             self.semaphore,
-            buffersize=self.buffersize,
+            buffersize=self.buffersize_right,
         )
         self.buf_left = VideoBufferLeft(
             self.source,
             self.mapping,
             self.semaphore,
-            buffersize=self.buffersize,
+            buffersize=self.buffersize_left,
         )
         self._frame_id: int | None = None
 
