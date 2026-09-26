@@ -251,7 +251,7 @@ Esta tarefa foca estritamente em maximizar a taxa de leitura (throughput / FPS) 
 
 #### 📋 Sub-lista de Objetivos da Tarefa 8
 
-- [ ] **8.1. Abertura Instantânea com Validação Lazy e Busca Binária de Fim de Vídeo (Resiliente a Falhas):**
+- [x] **8.1. Abertura Instantânea com Validação Lazy e Busca Binária de Fim de Vídeo (Resiliente a Falhas):**
   - Eliminar o seek forçado até o fim do vídeo no construtor `OpenCVVideoSource.__init__`, reduzindo o TTFF de **~1.611 ms para ~60 ms** (ganho de **26x**).
   - Implementar detecção inteligente ao receber `False`/`None` em `source.read()` durante a leitura.
   - Implementar probe de tolerância de $X$ frames com `grab()` para descartar frames corrompidos pontuais (Caso 3) sem truncar o stream.
