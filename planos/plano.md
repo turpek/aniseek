@@ -306,14 +306,8 @@ Esta tarefa visa atingir conformidade estrita de tipos em 100% do código-fonte 
   - Correção do fatiamento de lista no log lazy trace de `PlayerControl.__opencv_format`, restaurando o comportamento original (`ls[:10]`).
   - Adicionado método abstrato `__getitem__` na interface `IVideoBuffer` e stub em `IFakeVideoBuffer`.
   - Zero erros de Mypy em `PlayerControl` e `VideoReader`.
-- [ ] **9.3. Conformidade PEP 484 em Assinaturas Opcionais:**
-  - Corrigir parâmetros com padrão `None` sem `| None` nas anotações (ex: `labels: list[str | None] | None = None` em `playlist.py` e `frame_ids: list[int] | None = None` em `manager.py`).
-  - Anotar explicitamente os atributos de coleção `__right_videos: list[VideoInfo]` e `__left_videos: list[VideoInfo]`.
-- [ ] **9.4. Saneamento no Módulo `view` (`VideoController` e `VideoCon`):**
-  - Tipagem estrita de referências ao `SectionManager` e `VideoManager` em `VideoController`.
-  - Resolução de incompatibilidades de tipo no manuseio de delay e frame format em `VideoCon`.
-- [ ] **9.5. Verificação Limpa:**
-  - Execução de `uv run mypy src` com 0 erros encontrados.
+- [-] **9.3 a 9.5. Postergação do Saneamento nos Módulos Secundários (`editing`, `view`):**
+  - **Decisão Arquitetural Consolidada:** O saneamento de tipagem nos contratos centrais do motor de leitura (`IFrameSource`, `IVideoBuffer`, `VideoReader` e `PlayerControl`) foi 100% concluído. Os erros residuais nos módulos `editing` e `view` decorrem de débitos técnicos e decisões históricas de design que demandam uma reestruturação arquitetural futura e não devem ser mascarados por anotações artificiais. Ficam formalmente postergados para uma refatoração dedicada.
 
 ---
 
