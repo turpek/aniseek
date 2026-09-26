@@ -1,8 +1,11 @@
 from __future__ import annotations
 
+import sys
 from collections.abc import Generator
 from contextlib import contextmanager
 from typing import Any
+
+from loguru import logger
 
 DEFAULT_BUFFERSIZE: int = 30
 DEFAULT_IMAGE_FPS: float = 24.0
@@ -26,18 +29,47 @@ DEFAULT_IMAGE_EXTENSIONS: tuple[str, ...] = (
     ".webp",
     ".bmp",
 )
+DEFAULT_LOG_LEVEL: str = "INFO"
+VALID_LOG_LEVELS: tuple[str, ...] = (
+    "TRACE",
+    "DEBUG",
+    "INFO",
+    "SUCCESS",
+    "WARNING",
+    "ERROR",
+    "CRITICAL",
+)
 
 
 class Config:
     """Configuração global centralizada do aniseek."""
 
-    def __init__(self) -> None:
+    _handler_id: int | None = None
+
+    def __init__(self, apply_logging: bool = False) -> None:
         self._buffersize: int = DEFAULT_BUFFERSIZE
         self._image_fps: float = DEFAULT_IMAGE_FPS
         self._video_extensions: tuple[str, ...] = DEFAULT_VIDEO_EXTENSIONS
         self._image_extensions: tuple[str, ...] = DEFAULT_IMAGE_EXTENSIONS
         self._hold_delay: float = DEFAULT_HOLD_DELAY
         self._hold_interval: float = DEFAULT_HOLD_INTERVAL
+        self._log_level: str = DEFAULT_LOG_LEVEL
+        if apply_logging:
+            self._apply_log_level()
+
+    def _apply_log_level(self) -> None:
+        """Aplica o nível de log no handler do Loguru gerenciado pelo aniseek."""
+        if Config._handler_id is not None:
+            try:
+                logger.remove(Config._handler_id)
+            except ValueError:
+                pass
+        else:
+            try:
+                logger.remove(0)
+            except ValueError:
+                pass
+        Config._handler_id = logger.add(sys.stderr, level=self._log_level)
 
     @property
     def buffersize(self) -> int:
@@ -101,6 +133,20 @@ class Config:
             raise ValueError(f"hold_interval deve ser positivo, recebeu: {value}")
         self._hold_interval = float(value)
 
+    @property
+    def log_level(self) -> str:
+        """Nível mínimo de log do sistema ('TRACE', 'DEBUG', 'INFO', 'WARNING', 'ERROR', 'CRITICAL')."""
+        return self._log_level
+
+    @log_level.setter
+    def log_level(self, value: str) -> None:
+        if not isinstance(value, str) or value.upper() not in VALID_LOG_LEVELS:
+            raise ValueError(
+                f"log_level deve ser um de {VALID_LOG_LEVELS}, recebeu: {value}"
+            )
+        self._log_level = value.upper()
+        self._apply_log_level()
+
     def reset(self) -> None:
         """Restaura todas as configurações para seus valores padrão de fábrica."""
         self._buffersize = DEFAULT_BUFFERSIZE
@@ -109,6 +155,7 @@ class Config:
         self._image_extensions = DEFAULT_IMAGE_EXTENSIONS
         self._hold_delay = DEFAULT_HOLD_DELAY
         self._hold_interval = DEFAULT_HOLD_INTERVAL
+        self.log_level = DEFAULT_LOG_LEVEL
 
     @contextmanager
     def __call__(self, **kwargs: Any) -> Generator[Config, None, None]:
@@ -128,4 +175,4 @@ class Config:
                 setattr(self, key, old_value)
 
 
-config = Config()
+config = Config(apply_logging=True)

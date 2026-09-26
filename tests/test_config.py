@@ -14,6 +14,7 @@ def test_config_default_values():
     assert ".png" in cfg.image_extensions
     assert cfg.hold_delay == 0.15
     assert cfg.hold_interval == pytest.approx(1.0 / 30)
+    assert cfg.log_level == "INFO"
 
 
 def test_config_buffersize_setter():
@@ -90,6 +91,21 @@ def test_config_hold_interval_invalid(invalid_val):
         cfg.hold_interval = invalid_val
 
 
+def test_config_log_level_setter():
+    """Atualiza log_level com valor válido e normaliza para maiúsculas."""
+    cfg = Config()
+    cfg.log_level = "debug"
+    assert cfg.log_level == "DEBUG"
+
+
+@pytest.mark.parametrize("invalid_val", ["INVALID", 123, None], ids=["unknown_string", "integer", "none"])
+def test_config_log_level_invalid(invalid_val):
+    """Rejeita valores inválidos para log_level."""
+    cfg = Config()
+    with pytest.raises(ValueError):
+        cfg.log_level = invalid_val
+
+
 def test_config_reset():
     """Restaura todas as configurações para os valores de fábrica."""
     cfg = Config()
@@ -99,6 +115,7 @@ def test_config_reset():
     cfg.image_extensions = (".myimg",)
     cfg.hold_delay = 0.5
     cfg.hold_interval = 0.1
+    cfg.log_level = "TRACE"
 
     cfg.reset()
 
@@ -108,21 +125,24 @@ def test_config_reset():
     assert ".png" in cfg.image_extensions
     assert cfg.hold_delay == 0.15
     assert cfg.hold_interval == pytest.approx(1.0 / 30)
+    assert cfg.log_level == "INFO"
 
 
 def test_config_context_manager():
     """Aplica configurações temporárias dentro de bloco with e restaura ao sair."""
     cfg = Config()
-    with cfg(buffersize=15, image_fps=12.0, hold_delay=0.3, hold_interval=0.05):
+    with cfg(buffersize=15, image_fps=12.0, hold_delay=0.3, hold_interval=0.05, log_level="DEBUG"):
         assert cfg.buffersize == 15
         assert cfg.image_fps == 12.0
         assert cfg.hold_delay == 0.3
         assert cfg.hold_interval == 0.05
+        assert cfg.log_level == "DEBUG"
 
     assert cfg.buffersize == 30
     assert cfg.image_fps == 24.0
     assert cfg.hold_delay == 0.15
     assert cfg.hold_interval == pytest.approx(1.0 / 30)
+    assert cfg.log_level == "INFO"
 
 
 def test_config_context_manager_restores_on_exception():
