@@ -243,7 +243,7 @@ def bench_memory_gc(
 ) -> tuple[float, int]:
     """Mede o pico de RAM e o número de coletas de Garbage Collection."""
     gc.collect()
-    gc_before = sum(gc.get_count())
+    gc_before = sum(stat["collections"] for stat in gc.get_stats())
 
     tracemalloc.start()
     with source_registry.use(video=backend_cls):
@@ -266,7 +266,7 @@ def bench_memory_gc(
     _, peak = tracemalloc.get_traced_memory()
     tracemalloc.stop()
 
-    gc_after = sum(gc.get_count())
+    gc_after = sum(stat["collections"] for stat in gc.get_stats())
     gc_diff = max(0, gc_after - gc_before)
     peak_mb = round(peak / (1024 * 1024), 2)
     return peak_mb, gc_diff
