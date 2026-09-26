@@ -260,7 +260,7 @@ Esta tarefa foca estritamente em maximizar a taxa de leitura (throughput / FPS) 
 - [ ] **8.2. Otimização de Throughput na Leitura Reversa (`VideoBufferLeft`):**
   - Reduzir a discrepância entre a velocidade de avanço (**501 FPS**) e a velocidade de recuo (**190 FPS**).
   - Otimizar o algoritmo de janelas e o pré-carregamento de blocos no leitor reverso para minimizar seeks redundantes que forçam o FFmpeg a decodificar Keyframes (GOP) repetidamente.
-- [ ] **8.3. Correção de Métricas no Script de Benchmark (`benchmarks/bench_core.py`):**
+- [x] **8.3. Correção de Métricas no Script de Benchmark (`benchmarks/bench_core.py`):**
   - Corrigir a função `bench_memory_gc` para utilizar `gc.get_stats()` em vez de `gc.get_count()`, reportando fielmente os ciclos reais de coleta de lixo.
   - Manter suporte a persistência e comparação de resultados via `--save` e `--compare`.
 
