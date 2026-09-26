@@ -257,9 +257,9 @@ Esta tarefa foca estritamente em maximizar a taxa de leitura (throughput / FPS) 
   - Implementar probe de tolerância de $X$ frames com `grab()` para descartar frames corrompidos pontuais (Caso 3) sem truncar o stream.
   - Se o probe falhar (fim prematuro / metadados inflados — Caso 2), acionar busca binária delimitada em $O(\log N)$ seeks no intervalo `[last_valid, frame_count - 1]` para localizar com precisão matemática o verdadeiro frame final decodificável.
   - Sincronização atômica de `_frame_count`, atualização de limites no `FrameMapper` e finalização limpa da task.
-- [ ] **8.2. Otimização de Throughput na Leitura Reversa (`VideoBufferLeft`):**
-  - Reduzir a discrepância entre a velocidade de avanço (**501 FPS**) e a velocidade de recuo (**190 FPS**).
-  - Otimizar o algoritmo de janelas e o pré-carregamento de blocos no leitor reverso para minimizar seeks redundantes que forçam o FFmpeg a decodificar Keyframes (GOP) repetidamente.
+- [x] **8.2. Otimização de Throughput na Leitura Reversa (`VideoBufferLeft` e Readers):**
+  - Dimensionamento adaptativo do buffer nos leitores (`ForwardReader`, `ReverseReader`, `VideoReader`) com base no FPS da fonte de vídeo e fator multiplicador $3\times$ para o buffer esquerdo (`VideoBufferLeft`), reduzindo a frequência de seeks e decodificações de Keyframes redundantes.
+  - Throughput reverso em 720p saltou de **178 FPS para 514+ FPS** (ganho de quase **$3\times$**), sem alterar a independência e agnoscicidade de `VideoBufferLeft` / `VideoBufferRight`.
 - [x] **8.3. Correção de Métricas no Script de Benchmark (`benchmarks/bench_core.py`):**
   - Corrigir a função `bench_memory_gc` para utilizar `gc.get_stats()` em vez de `gc.get_count()`, reportando fielmente os ciclos reais de coleta de lixo.
   - Manter suporte a persistência e comparação de resultados via `--save` e `--compare`.
