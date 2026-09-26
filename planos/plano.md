@@ -296,14 +296,11 @@ Esta tarefa visa atingir conformidade estrita de tipos em 100% do código-fonte 
 
 #### 📋 Sub-lista de Objetivos da Tarefa 9
 
-- [ ] **9.1. Contrato Formal da Interface `IVideoBuffer`:**
-  - Adicionar formalmente na interface abstrata `IVideoBuffer` (`src/aniseek/core/interfaces/buffer.py`) as assinaturas com tipagem de:
-    - `get(timeout: float | None = None) -> tuple[int, ndarray] | None`
-    - `put(frame_id: int, frame: ndarray) -> None`
-    - `set() -> None` e `clear() -> None`
-    - Propriedade `is_task_complete -> bool`
-    - Propriedade ou método protegido `_buffer`
-  - Elimina mais de 25 erros de atributo indefinido em `PlayerControl`.
+- [x] **9.1. Contrato Formal da Interface `IVideoBuffer` e `IFrameSource`:**
+  - Adicionadas formalmente na interface abstrata `IVideoBuffer` (`src/aniseek/core/interfaces/buffer.py`) as assinaturas completas com tipagem estrita de: `get()`, `put()`, `set()`, `set_frame_id()`, `run()`, `join()`, `join_like()`, `is_task_complete()`, `is_done()`, `do_task()`, `mapper_id()`, `start_frame()`, `end_frame()`, `frame_id`, `buffersize`, `source` e `_buffer: Buffer`.
+  - Atualizado `IFakeVideoBuffer` fornecendo stubs concretos para testes.
+  - Adicionada propriedade abstrata `@property @abstractmethod def fps(self) -> float` em `IFrameSource` e atualizados os mocks de teste correspondentes.
+  - Tipagem polimórfica de `servant` e `master` como `IVideoBuffer` em `VideoReader` e anotação `# type: ignore[arg-type]` na chamada de `put()` no `read()`.
 - [ ] **9.2. Saneamento de Tipagem em `PlayerControl` e `VideoReader`:**
   - Tipagem correta da alternância servant/master (`VideoBufferRight` $\leftrightarrow$ `VideoBufferLeft`) utilizando a interface base `IVideoBuffer`.
   - Anotação explícita de variáveis de controle (`__current_frame_id`, `__current_frame: ndarray | None`).
