@@ -6,7 +6,7 @@ from pytest import fixture
 
 from aniseek.core.sources.opencv import OpenCVVideoSource
 from aniseek.editing.section import SectionManager, VideoSection
-from aniseek.view.interfaces.command import Command
+from aniseek.view.interfaces.command import ButtonState, Command
 from aniseek.view.shortcuts import IP
 from aniseek.view.video import FrameViewer
 from aniseek.view.video_command import MacroCommand
@@ -91,7 +91,7 @@ def test_Video_read_300_frames_e_voltando_1(myvideo):
     expect = 298
     for _ in range(300):
         myvideo.read()
-    myvideo.control(ord('a'))
+    myvideo.control(ord('a'), ButtonState.PRESS)
     myvideo.read()
     result = myvideo.frame_id
     assert result == expect
@@ -102,7 +102,7 @@ def test_Video_read_300_frames_e_voltando_tudo(myvideo):
     expect = 0
     for _ in range(300):
         myvideo.read()
-    myvideo.control(ord('a'))
+    myvideo.control(ord('a'), ButtonState.PRESS)
     for _ in range(300):
         myvideo.read()
     result = myvideo.frame_id
@@ -111,7 +111,7 @@ def test_Video_read_300_frames_e_voltando_tudo(myvideo):
 
 def test_Video_read_verificando_se_a_leitura_rewind_foi_bem_sucedida_e_falhando(myvideo):
     expect = False
-    myvideo.control(ord('a'))
+    myvideo.control(ord('a'), ButtonState.PRESS)
     result, _ = myvideo.read()
     assert result == expect
 
@@ -120,7 +120,7 @@ def test_Video_read_300_frames_e_voltando_tudo_teste_se_foi_bem_sucedida_e_falha
     expect = False
     for _ in range(300):
         myvideo.read()
-    myvideo.control(ord('a'))
+    myvideo.control(ord('a'), ButtonState.PRESS)
     for _ in range(300):
         myvideo.read()
     result, _ = myvideo.read()
@@ -204,7 +204,7 @@ def test_frame_viewer_save_command_via_shortcut(mycap, creating_window):
     source = OpenCVVideoSource('test_video.mp4')
     viewer = FrameViewer(source)
     with patch.object(viewer._FrameViewer__video_controller, 'save') as mock_save:
-        viewer.control(IP.CTRL_BIT | ord('w'))
+        viewer.control(IP.CTRL_BIT | ord('w'), ButtonState.PRESS)
         mock_save.assert_called_once()
     viewer.join()
 
@@ -214,7 +214,7 @@ def test_frame_viewer_custom_shortcuts_in_init(mycap, creating_window):
     source = OpenCVVideoSource('test_video.mp4')
     viewer = FrameViewer(source, shortcuts={ord('k'): 'PauseCommand'})
     with patch.object(viewer._FrameViewer__video_controller, 'set_pause') as mock_pause:
-        viewer.control(ord('k'))
+        viewer.control(ord('k'), ButtonState.PRESS)
         mock_pause.assert_called_once()
     viewer.join()
 
@@ -226,11 +226,11 @@ def test_frame_viewer_bind_command(mycap, creating_window):
     executed = []
 
     class CustomCommand(Command):
-        def executor(self) -> None:
+        def on_press(self) -> None:
             executed.append(True)
 
     viewer.bind(ord('m'), CustomCommand())
-    viewer.control(ord('m'))
+    viewer.control(ord('m'), ButtonState.PRESS)
     assert executed == [True]
     viewer.join()
 
@@ -252,11 +252,11 @@ def test_macro_command_executes_sequence_in_order():
         def __init__(self, step_id: int):
             self.step_id = step_id
 
-        def executor(self) -> None:
+        def on_press(self) -> None:
             call_order.append(self.step_id)
 
     macro = MacroCommand([StepCommand(1), StepCommand(2), StepCommand(3)])
-    macro.executor()
+    macro.executor(ButtonState.PRESS)
     assert call_order == [1, 2, 3]
 
 
@@ -268,12 +268,12 @@ def test_macro_command_add_appends_commands():
         def __init__(self, step_id: int):
             self.step_id = step_id
 
-        def executor(self) -> None:
+        def on_press(self) -> None:
             call_order.append(self.step_id)
 
     macro = MacroCommand([StepCommand(1)])
     macro.add(StepCommand(2))
-    macro.executor()
+    macro.executor(ButtonState.PRESS)
     assert call_order == [1, 2]
 
 
@@ -293,11 +293,11 @@ def test_macro_command_bound_to_viewer(mycap, creating_window):
         def __init__(self, name: str):
             self.name = name
 
-        def executor(self) -> None:
+        def on_press(self) -> None:
             executed.append(self.name)
 
     macro = MacroCommand([ActionCommand('step_1'), ActionCommand('step_2')])
     viewer.bind(ord('z'), macro)
-    viewer.control(ord('z'))
+    viewer.control(ord('z'), ButtonState.PRESS)
     assert executed == ['step_1', 'step_2']
     viewer.join()

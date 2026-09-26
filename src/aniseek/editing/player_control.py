@@ -237,6 +237,14 @@ class PlayerControl:
     def current_delay(self) -> int:
         return self.__current_delay
 
+    def set_delay(self, value: int) -> None:
+        """Define o delay diretamente."""
+        self.__delay = max(0, value)
+        if self.__delay > 0:
+            self.__read = False
+        else:
+            self.__read = True
+
     def remove_frame(self) -> tuple[int | None, ndarray | None]:
         logger.debug(f'servo {self.servant}')
         if isinstance(self.__frame, ndarray) and not self.pause():

@@ -12,6 +12,7 @@ from aniseek.editing.manager import VideoManager
 from aniseek.editing.player_control import PlayerControl
 from aniseek.editing.playlist import Playlist
 from aniseek.editing.trash import Trash
+from aniseek.view.interfaces.command import ButtonState
 from aniseek.view.video_command import (
     ProceesCommand,
     RemoveFrameCommand,
@@ -83,7 +84,7 @@ def orch_200(mycap, frame_count=200, buffersize=25, log=False):
 @pytest.mark.parametrize('video', [([], 25, 100, False)], indirect=True)
 def test_RewindCommand_sem_frames(video):
     rewind = RewindCommand(video)
-    rewind.executor()
+    rewind.executor(ButtonState.PRESS)
     assert isinstance(video.player.servant, VideoBufferLeft)
 
 
@@ -92,7 +93,7 @@ def test_RewindCommand_sem_frames_com_read(video):
     rewind = RewindCommand(video)
 
     expect = False
-    rewind.executor()
+    rewind.executor(ButtonState.PRESS)
     result, _ = video.read()
     assert expect == result
 
@@ -103,9 +104,9 @@ def test_RewindCommand_sem_frames_com_a_seguinte_sequencia_rewind_proceed_rewind
     procees = ProceesCommand(video)
 
     expect = False
-    rewind.executor()
-    procees.executor()
-    rewind.executor()
+    rewind.executor(ButtonState.PRESS)
+    procees.executor(ButtonState.PRESS)
+    rewind.executor(ButtonState.PRESS)
     result, _ = video.read()
     assert expect == result
 
@@ -123,7 +124,7 @@ def test_RewindCommand_com_1_frame(video):
 def test_RewindCommand_com_1_frame_com_read(video):
     rewind = RewindCommand(video)
     expect = False
-    rewind.executor()
+    rewind.executor(ButtonState.PRESS)
     result, _ = video.read()
     assert expect == result
 
@@ -134,9 +135,9 @@ def test_RewindCommand_com_1_frame_com_a_seguinte_sequencia_rewind_proceed_rewin
     procees = ProceesCommand(video)
 
     expect = False
-    rewind.executor()
-    procees.executor()
-    rewind.executor()
+    rewind.executor(ButtonState.PRESS)
+    procees.executor(ButtonState.PRESS)
+    rewind.executor(ButtonState.PRESS)
     result, _ = video.read()
     assert expect == result
 
@@ -154,7 +155,7 @@ def test_RewindCommand_com_2_frames(video):
 def test_RewindCommand_com_2_frames_com_read(video):
     rewind = RewindCommand(video)
     expect = False
-    rewind.executor()
+    rewind.executor(ButtonState.PRESS)
     result, _ = video.read()
     assert expect == result
 
@@ -165,9 +166,9 @@ def test_RewindCommand_com_2_frames_com_a_seguinte_sequencia_rewind_proceed_rewi
     procees = ProceesCommand(video)
 
     expect = False
-    rewind.executor()
-    procees.executor()
-    rewind.executor()
+    rewind.executor(ButtonState.PRESS)
+    procees.executor(ButtonState.PRESS)
+    rewind.executor(ButtonState.PRESS)
     result, _ = video.read()
     assert expect == result
 
@@ -180,9 +181,9 @@ def test_RewindCommand_com_2_frames_com_set_antes_do_executor(video):
     video.player.master.set(1)
 
     expect = True
-    rewind.executor()
-    procees.executor()
-    rewind.executor()
+    rewind.executor(ButtonState.PRESS)
+    procees.executor(ButtonState.PRESS)
+    rewind.executor(ButtonState.PRESS)
     result, _ = video.read()
     assert expect == result
 
@@ -195,9 +196,9 @@ def test_RewindCommand_com_2_frames_com_set_antes_do_executor_com_read(video):
     video.player.master.set(1)
 
     expect = False
-    rewind.executor()
-    procees.executor()
-    rewind.executor()
+    rewind.executor(ButtonState.PRESS)
+    procees.executor(ButtonState.PRESS)
+    rewind.executor(ButtonState.PRESS)
     result, _ = video.read()
     result, _ = video.read()
     assert expect == result
@@ -216,7 +217,7 @@ def test_RewindCommand_com_3_frames(video):
 def test_RewindCommand_com_3_frames_com_read(video):
     rewind = RewindCommand(video)
     expect = False
-    rewind.executor()
+    rewind.executor(ButtonState.PRESS)
     result, _ = video.read()
     assert expect == result
 
@@ -226,9 +227,9 @@ def test_RewindCommand_com_3_frames_com_a_seguinte_sequencia_rewind_proceed_rewi
     rewind = RewindCommand(video)
     procees = ProceesCommand(video)
 
-    rewind.executor()
-    procees.executor()
-    rewind.executor()
+    rewind.executor(ButtonState.PRESS)
+    procees.executor(ButtonState.PRESS)
+    rewind.executor(ButtonState.PRESS)
     assert isinstance(video.player.servant, VideoBufferLeft)
 
 
@@ -240,9 +241,9 @@ def test_RewindCommand_com_3_frames_com_set_antes_do_executor(video):
     video.player.master.set(2)
 
     expect = True
-    rewind.executor()
-    procees.executor()
-    rewind.executor()
+    rewind.executor(ButtonState.PRESS)
+    procees.executor(ButtonState.PRESS)
+    rewind.executor(ButtonState.PRESS)
     result, _ = video.read()
     assert expect == result
 
@@ -255,9 +256,9 @@ def test_RewindCommand_com_3_frames_com_set_antes_do_executor_com_2_read(video):
     video.player.master.set(2)
 
     expect = True
-    rewind.executor()
-    procees.executor()
-    rewind.executor()
+    rewind.executor(ButtonState.PRESS)
+    procees.executor(ButtonState.PRESS)
+    rewind.executor(ButtonState.PRESS)
     result, _ = video.read()
     result, _ = video.read()
     assert expect == result
@@ -271,9 +272,9 @@ def test_RewindCommand_com_3_frames_com_set_antes_do_executor_com_3_read(video):
     video.player.master.set(2)
 
     expect = False
-    rewind.executor()
-    procees.executor()
-    rewind.executor()
+    rewind.executor(ButtonState.PRESS)
+    procees.executor(ButtonState.PRESS)
+    rewind.executor(ButtonState.PRESS)
     result, _ = video.read()
     result, _ = video.read()
     result, _ = video.read()
@@ -289,7 +290,7 @@ def test_RewindCommand_com_3_frames_com_set_antes_do_executor_com_3_read(video):
 def test_RemoveFrameCommand_removendo_frame_com_frame_mapper_vazio(video):
     remove = RemoveFrameCommand(video)
     video.read()
-    remove.executor()
+    remove.executor(ButtonState.PRESS)
 
     expect_frame_id = None
     video.read()
@@ -303,7 +304,7 @@ def test_RemoveFrameCommand_removendo_frame_com_frame_mapper_vazio(video):
 def test_RemoveFrameCommand_removendo_frame_com_1_frame_no_frame_mapper(video):
     remove = RemoveFrameCommand(video)
     video.read()
-    remove.executor()
+    remove.executor(ButtonState.PRESS)
 
     expect_frame_id = None
     expect_VideoBufferLeft_servant = True
@@ -321,7 +322,7 @@ def test_RemoveFrameCommand_removendo_frame_com_1_frame_no_frame_mapper_com_rewi
     remove = RemoveFrameCommand(video)
     video.player.read()
     video.player.rewind()
-    remove.executor()
+    remove.executor(ButtonState.PRESS)
 
     expect_frame_id = None
     expect_VideoBufferLeft_servant = False
@@ -340,7 +341,7 @@ def test_RemoveFrameCommand_removendo_frame_com_1_frame_no_frame_mapper_com_rewi
 def test_RemoveFrameCommand_removendo_frame_com_2_frame_no_frame_mapper(video):
     remove = RemoveFrameCommand(video)
     video.read()
-    remove.executor()
+    remove.executor(ButtonState.PRESS)
 
     expect_frame_id = 1
     expect_VideoBufferLeft_servant = True
@@ -357,7 +358,7 @@ def test_RemoveFrameCommand_removendo_frame_com_2_frame_no_frame_mapper_removend
     remove = RemoveFrameCommand(video)
     for _ in range(2):
         video.read()
-        remove.executor()
+        remove.executor(ButtonState.PRESS)
 
     expect_frame_id = None
     expect_servant = True
@@ -376,7 +377,7 @@ def test_RemoveFrameCommand_removendo_frame_com_2_frame_no_frame_mapper_removend
     video.rewind()
 
     video.read()
-    remove.executor()
+    remove.executor(ButtonState.PRESS)
 
     expect_frame_id = 0
 
@@ -393,7 +394,7 @@ def test_RemoveFrameCommand_removendo_frame_com_2_frame_no_frame_mapper_removend
     video.rewind()
     for _ in range(2):
         video.read()
-        remove.executor()
+        remove.executor(ButtonState.PRESS)
 
     expect_frame_id = None
     expect_servant = False
@@ -411,7 +412,7 @@ def test_RemoveFrameCommand_removendo_frame_com_2_frame_no_frame_mapper_removend
 def test_RemoveFrameCommand_removendo_frame_com_3_frame_no_frame_mapper(video):
     remove = RemoveFrameCommand(video)
     video.read()
-    remove.executor()
+    remove.executor(ButtonState.PRESS)
 
     video.read()
     expect_frame_id = 1
@@ -426,7 +427,7 @@ def test_RemoveFrameCommand_removendo_frame_com_3_frame_no_frame_mapper_removend
     remove = RemoveFrameCommand(video)
     for _ in range(2):
         video.read()
-        remove.executor()
+        remove.executor(ButtonState.PRESS)
 
     video.read()
     expect_frame_id = 2
@@ -441,7 +442,7 @@ def test_RemoveFrameCommand_removendo_frame_com_3_frame_no_frame_mapper_removend
     remove = RemoveFrameCommand(video)
     for _ in range(3):
         video.read()
-        remove.executor()
+        remove.executor(ButtonState.PRESS)
 
     video.read()
     expect_frame_id = None
@@ -458,7 +459,7 @@ def test_RemoveFrameCommand_removendo_frame_com_3_frame_no_frame_mapper_removend
     video.rewind()
 
     video.read()
-    remove.executor()
+    remove.executor(ButtonState.PRESS)
 
     video.read()
     expect_frame_id = 1
@@ -476,7 +477,7 @@ def test_RemoveFrameCommand_removendo_frame_com_3_frame_no_frame_mapper_removend
     video.rewind()
     for _ in range(2):
         video.read()
-        remove.executor()
+        remove.executor(ButtonState.PRESS)
 
     video.read()
     expect_frame_id = 0
@@ -493,7 +494,7 @@ def test_RemoveFrameCommand_removendo_frame_com_3_frame_no_frame_mapper_removend
     video.rewind()
     for _ in range(3):
         video.read()
-        remove.executor()
+        remove.executor(ButtonState.PRESS)
 
     video.read()
     expect_frame_id = None
@@ -507,7 +508,7 @@ def test_RemoveFrameCommand_removendo_frame_com_3_frame_no_frame_mapper_removend
 def test_RemoveFrameCommand_removendo_frame_com_3_frame_no_frame_mapper_removendo_frame_do_meio_1x(video):
     remove = RemoveFrameCommand(video)
     [video.read() for _ in range(2)]
-    remove.executor()
+    remove.executor(ButtonState.PRESS)
 
     video.read()
     expect_frame_id = 2
@@ -523,7 +524,7 @@ def test_RemoveFrameCommand_removendo_frame_com_3_frame_no_frame_mapper_removend
     video.read()
     for _ in range(2):
         video.read()
-        remove.executor()
+        remove.executor(ButtonState.PRESS)
 
     video.read()
     expect_frame_id = 0
@@ -540,7 +541,7 @@ def test_RemoveFrameCommand_removendo_frame_com_3_frame_no_frame_mapper_removend
     video.read()
     for _ in range(3):
         video.read()
-        remove.executor()
+        remove.executor(ButtonState.PRESS)
 
     video.read()
     expect_frame_id = None
@@ -555,7 +556,7 @@ def test_RemoveFrameCommand_removendo_frame_com_3_frame_no_frame_mapper_removend
     remove = RemoveFrameCommand(video)
     [video.read() for _ in range(2)]
     video.rewind()
-    remove.executor()
+    remove.executor(ButtonState.PRESS)
 
     video.read()
     expect_frame_id = 0
@@ -572,7 +573,7 @@ def test_RemoveFrameCommand_removendo_frame_com_3_frame_no_frame_mapper_removend
     video.rewind()
     for _ in range(2):
         video.read()
-        remove.executor()
+        remove.executor(ButtonState.PRESS)
 
     video.read()
     expect_frame_id = 2
@@ -590,7 +591,7 @@ def test_RemoveFrameCommand_removendo_frame_com_3_frame_no_frame_mapper_removend
     video.rewind()
     for _ in range(3):
         video.read()
-        remove.executor()
+        remove.executor(ButtonState.PRESS)
 
     video.read()
     expect_frame_id = None
@@ -604,7 +605,7 @@ def test_RemoveFrameCommand_removendo_frame_com_3_frame_no_frame_mapper_removend
 def test_RemoveFrameCommand_removendo_frame_0_com_servant_VideoBufferRight(video):
     video.read()
     remove = RemoveFrameCommand(video)
-    remove.executor()
+    remove.executor(ButtonState.PRESS)
 
     video.read()
     expect_frame_id = 1
@@ -620,7 +621,7 @@ def test_RemoveFrameCommand_removendo_ultimo_frame_com_servant_VideoBufferRight(
     video.player.master.set(99)
     video.read()
     remove = RemoveFrameCommand(video)
-    remove.executor()
+    remove.executor(ButtonState.PRESS)
 
     video.read()
     expect_frame_id = 98
@@ -636,7 +637,7 @@ def test_RemoveFrameCommand_removendo_frame_do_meio_com_servant_VideoBufferRight
     video.player.master.set(50)
     video.read()
     remove = RemoveFrameCommand(video)
-    remove.executor()
+    remove.executor(ButtonState.PRESS)
 
     video.read()
     expect_frame_id = 51
@@ -653,7 +654,7 @@ def test_RemoveFrameCommand_removendo_todos_os_frames_desde_o_inicio_com_servant
     video.player.master.set(50)
     while not video.player.servant.is_task_complete():
         video.read()
-        remove.executor()
+        remove.executor(ButtonState.PRESS)
 
     # Aqui ocorre duas trocas de buffers, a primeira ao atingir a extremidade direita,
     # a segunda ao atingir a extremidade da esquerda, portanto o buffer do final é o da direita
@@ -670,7 +671,7 @@ def test_RemoveFrameCommand_removendo_todos_os_frames_a_partir_da_metade_com_ser
     remove = RemoveFrameCommand(video)
     while not video.player.servant.is_task_complete():
         video.read()
-        remove.executor()
+        remove.executor(ButtonState.PRESS)
 
     video.read()
     expect_is_task_complete = True
@@ -691,7 +692,7 @@ def test_RemoveFrameCommand_removendo_frame_0_com_servant_VideoBufferLeft(video)
     video.read()
 
     remove = RemoveFrameCommand(video)
-    remove.executor()
+    remove.executor(ButtonState.PRESS)
 
     expect_frame_id = 1
     video.read()
@@ -707,7 +708,7 @@ def test_RemoveFrameCommand_removendo_ultimo_frame_com_servant_VideoBufferLeft(v
     video.rewind()
 
     remove = RemoveFrameCommand(video)
-    remove.executor()
+    remove.executor(ButtonState.PRESS)
 
     video.read()
     expect_frame_id = 98
@@ -725,7 +726,7 @@ def test_RemoveFrameCommand_removendo_frame_do_meio_com_servant_VideoBufferLeft(
     video.read()
 
     remove = RemoveFrameCommand(video)
-    remove.executor()  # Remove o frame_id 49
+    remove.executor(ButtonState.PRESS)  # Remove o frame_id 49
 
     video.read()
     expect_frame_id = 48
@@ -745,7 +746,7 @@ def test_RemoveFrameCommand_removendo_todos_os_frames_a_partir_da_metade_com_ser
 
     while not video.player.servant.is_task_complete():
         video.read()
-        remove.executor()
+        remove.executor(ButtonState.PRESS)
 
     # Aqui ocorre duas trocas de buffers, a primeira ao atingir a extremidade esquerda,
     # a segunda ao atingir a extremidade da direita, portanto o buffer do final é o da esquerda
@@ -765,7 +766,7 @@ def test_RemoveFrameCommand_removendo_todos_os_frames_desde_o_inicio_com_servant
     video.rewind()
     while not video.player.servant.is_task_complete():
         video.read()
-        remove.executor()
+        remove.executor(ButtonState.PRESS)
 
     video.read()
     result_is_task_complet = video.player.servant.is_task_complete()
@@ -784,7 +785,7 @@ def test_RemoveFrameCommand_removendo_todos_os_frames_desde_o_final_com_servant_
     video.rewind()
 
     while not video.player.servant.is_task_complete():
-        remove.executor()
+        remove.executor(ButtonState.PRESS)
         video.read()
 
     expect_is_task_complete = True
@@ -800,7 +801,7 @@ def test_RemoveFrameCommand_removendo_o_primeiro_frame_com_servant_buffer_leftt_
     video.rewind()
 
     video.read()
-    remove.executor()
+    remove.executor(ButtonState.PRESS)
     video.rewind()
     video.read()
 
@@ -817,7 +818,7 @@ def test_RemoveFrameCommand_removendo_o_ultimos_frame_e_depois_proceed_e_read_no
     video.player.master.set(99)
 
     video.read()
-    remove.executor()
+    remove.executor(ButtonState.PRESS)
     video.proceed()
     video.read()
 
@@ -835,7 +836,7 @@ def test_RemoveFrameCommand_removendo_o_ultimo_frame_com_servant_buffer_left(vid
 
     video.read()
     video.rewind()
-    remove.executor()
+    remove.executor(ButtonState.PRESS)
     video.proceed()
     video.read()
 
@@ -852,10 +853,10 @@ def test_UndoFrameCommand_restaurando_o_frame_com_os_dois_buffers_vazios_exclusa
     # Removendo o frame de indice 15
     video.player.servant.run()
     video.read()
-    [remove.executor() for _ in range(100)]
+    [remove.executor(ButtonState.PRESS) for _ in range(100)]
 
     expect_frame_id = 0
-    undo.executor()
+    undo.executor(ButtonState.PRESS)
     result_frame_id = video.frame_id
     assert result_frame_id == expect_frame_id
 
@@ -867,7 +868,7 @@ def test_UndoFrameCommand_restaurando_o_frame_com_o_indice_no_buffer_primario_do
 
     # Removendo o frame de indice 15
     [video.read() for _ in range(16)]
-    remove.executor()
+    remove.executor(ButtonState.PRESS)
 
     # Retornando para o frame de indice 0
     video.rewind()
@@ -875,7 +876,7 @@ def test_UndoFrameCommand_restaurando_o_frame_com_o_indice_no_buffer_primario_do
     video.proceed()
 
     expect_frame_id = 15
-    undo.executor()
+    undo.executor(ButtonState.PRESS)
     result_frame_id = video.frame_id
     assert result_frame_id == expect_frame_id
 
@@ -890,9 +891,9 @@ def test_UndoFrameCommand_recuperando_o_frame_do_50_com_servant_VideoBufferRight
     video.player.master.set(50)
     video.player.servant.run()
     video.read()
-    remove.executor()
+    remove.executor(ButtonState.PRESS)
     [video.read() for _ in range(10)]
-    undo.executor()
+    undo.executor(ButtonState.PRESS)
     video.read()
     result = video.frame_id
     assert expect == result
@@ -936,7 +937,7 @@ def test_player_control_simulando_o_bug_ao_remover_o_1o_frame(video):
     video.rewind()
     video.read()
 
-    remove.executor()
+    remove.executor(ButtonState.PRESS)
     video.read()
 
     video.rewind()
@@ -981,7 +982,7 @@ def test_player_control_simulando_o_bug_ao_remover_o_1o_frame_versao_2(video):
     video.proceed()
     video.read()
 
-    remove.executor()
+    remove.executor(ButtonState.PRESS)
     video.read()
 
     video.rewind()
