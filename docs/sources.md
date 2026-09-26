@@ -73,10 +73,11 @@ with OpenCVVideoSource("meu_video.mp4") as src:
     success, frame = src.read()
 ```
 
-#### Características:
-- **Validação de `frame_count`:** Valida o cabeçalho do container e ajusta automaticamente caso os últimos frames estejam corrompidos ou inacessíveis.
-- **`seek` Otimizado:** Só emite instrução para o container caso o frame desejado seja diferente da posição atual do cursor.
-- **Suporte a `grab`:** Utiliza `cap.grab()` para avanços rápidos sem carga pesada de decodificação na CPU.
+#### Características e Otimizações de Performance:
+- **TTFF Instantâneo (Resolução *Lazy*):** Elimina validações síncronas pesadas durante a inicialização (`__init__`), permitindo abertura de vídeos grandes em milissegundos.
+- **Detecção Confinada via Busca Binária $O(\log N)$:** Em caso de metadados imprecisos ou vídeos corrompidos, utiliza busca binária com janela de tolerância para frames defeituosos pontuais, encontrando o limite real exato do arquivo sem penalizar o início da leitura.
+- **`seek` Otimizado:** Só emite instrução de posicionamento para o container nativo caso o frame desejado seja diferente da posição atual do cursor.
+- **Suporte a `grab`:** Utiliza `cap.grab()` para avanços rápidos sem carga pesada de decodificação de pixels na CPU/GPU.
 
 ---
 
