@@ -167,14 +167,40 @@ with FrameViewer.from_default("video.mp4") as viewer:
         viewer.show(ret, frame)
 ```
 
+### 6. Configuração Global Centralizada (`config`)
+
+O `aniseek` expõe um singleton global `config` para ajustar buffers, tempos de repetição de teclas e níveis de log:
+
+```python
+from aniseek import config
+
+# Ajustar parâmetros globais:
+config.buffersize = 45           # Capacidade do buffer de vídeo
+config.hold_delay = 0.20         # Tolerância inicial de clique antes de repetir (em segundos)
+config.hold_interval = 1.0 / 60  # Taxa de repetição ao manter pressionado (60 FPS)
+config.log_level = "DEBUG"       # 'TRACE', 'DEBUG', 'INFO', 'WARNING', 'ERROR'
+
+# Ou usar gerenciador de contexto temporário:
+with config(hold_delay=0.10, log_level="TRACE"):
+    # Executar testes ou depurações específicas
+    ...
+
+# Restaurar valores de fábrica:
+config.reset()
+```
+
 ---
 
 ## ⌨️ Comandos e Atalhos do `FrameViewer`
 
+Todos os comandos de navegação possuem suporte nativo ao **`HoldTimer`**:
+- **Clique rápido:** Avança ou retrocede com precisão cirúrgica de exatamente **1 único frame**.
+- **Segurar tecla:** Inicia a repetição contínua e suave após `config.hold_delay` (padrão: 150ms) a `config.hold_interval` (padrão: 30 FPS).
+
 | Tecla | Modificador | Ação | Descrição |
 | :---: | :---: | :--- | :--- |
-| **`d`** | — | **Proceed** | Avança frame a frame (+1). |
-| **`a`** | — | **Rewind** | Retrocede frame a frame (-1). |
+| **`d`** ou **`→`** | — | **Proceed** | Avança frame a frame (+1) com repetição contínua ao segurar. |
+| **`a`** ou **`←`** | — | **Rewind** | Retrocede frame a frame (-1) com repetição contínua ao segurar. |
 | **`espaço`** | — | **Pause/Play (Delay)** | Pausa ativa para edição (delay=0) ou retoma reprodução. |
 | **`b`** | — | **Pause/Play (Toggle)** | Alterna pausa e reprodução contínua. |
 | **`x`** | — | **Remover Frame** | Remove o frame atual e envia para a lixeira (`Trash`). |
@@ -182,8 +208,8 @@ with FrameViewer.from_default("video.mp4") as viewer:
 | **`[`** / **`]`** | — | **Velocidade** | Diminui / Aumenta a velocidade de reprodução. |
 | **`=`** | — | **Restaurar Velocidade**| Restaura o delay padrão de reprodução. |
 | **`w`** | `Ctrl` / `Shift` | **Salvar** | Persiste o estado das seções explicitamente no arquivo `.json`. |
-| **`d`** | `Ctrl` / `Shift` | **Próxima Seção** | Salta para o início da próxima seção. |
-| **`a`** | `Ctrl` / `Shift` | **Seção Anterior** | Salta para o fim da seção anterior. |
+| **`d`** ou **`↑`** | `Ctrl` / `Shift` | **Próxima Seção** | Salta para o início da próxima seção. |
+| **`a`** ou **`↓`** | `Ctrl` / `Shift` | **Seção Anterior** | Salta para o fim da seção anterior. |
 | **`s`** | `Ctrl` / `Shift` | **Dividir Seção** | Divide a seção atual no frame corrente (**S**plit). |
 | **`j`** | `Ctrl` / `Shift` | **Juntar Seção** | Mescla a seção atual com a adjacente (**J**oin). |
 | **`x`** | `Ctrl` / `Shift` | **Remover Seção** | Remove a seção inteira atual. |
@@ -199,7 +225,7 @@ with FrameViewer.from_default("video.mp4") as viewer:
 
 Para aprofundar-se na arquitetura e nas APIs detalhadas:
 
-- 🏛️ [**Arquitetura do Sistema (`docs/architecture.md`)**](docs/architecture.md): Visão detalhada das camadas `core`, `editing` e `view`, sistema servant/master e threading.
+- 🏛️ [**Arquitetura do Sistema (`docs/architecture.md`)**](docs/architecture.md): Visão detalhada das camadas `core`, `editing` e `view`, sistema servant/master, singleton `config` e política de logs.
 - 📖 [**Leitores de Vídeo (`docs/readers.md`)**](docs/readers.md): Guia completo de `BaseVideoReader`, `ForwardReader`, `ReverseReader` e `VideoReader`.
-- 🖼️ [**Visualizador e Edição (`docs/viewer.md`)**](docs/viewer.md): Guia do `FrameViewer`, customização de atalhos, comandos e `MacroCommand`.
+- 🖼️ [**Visualizador e Edição (`docs/viewer.md`)**](docs/viewer.md): Guia do `FrameViewer`, `HoldTimer`, ciclo de vida de botões, comandos e `MacroCommand`.
 - 🔌 [**Fontes e Backends (`docs/sources.md`)**](docs/sources.md): Detalhes de `IFrameSource`, `OpenCVVideoSource`, `ImageSource` e `SourceRegistry`.
