@@ -5,7 +5,7 @@ from importlib.metadata import PackageNotFoundError, version
 try:
     __version__ = version("aniseek")
 except PackageNotFoundError:
-    __version__ = "0.1.0"
+    __version__ = "0.2.0a0"
 
 from aniseek.config import config
 from aniseek.core.video_reader import (
