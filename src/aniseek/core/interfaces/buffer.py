@@ -75,6 +75,11 @@ class IVideoBuffer(ABC):
         ...
 
     @abstractmethod
+    def __getitem__(self, index: int) -> int | None:
+        """Retorna o frame_id correspondente ao índice no buffer."""
+        ...
+
+    @abstractmethod
     def mapper_id(self, index: int) -> int:
         """Retorna o frame_id correspondente ao índice no mapeamento."""
         ...
@@ -130,6 +135,9 @@ class IFakeVideoBuffer(IVideoBuffer):
     @property
     def frame_id(self) -> int | None:
         return self._frame_id
+
+    def __getitem__(self, index: int) -> int | None:
+        return None
 
     def mapper_id(self, index: int) -> int:
         return index
