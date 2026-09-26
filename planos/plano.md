@@ -301,9 +301,11 @@ Esta tarefa visa atingir conformidade estrita de tipos em 100% do código-fonte 
   - Atualizado `IFakeVideoBuffer` fornecendo stubs concretos para testes.
   - Adicionada propriedade abstrata `@property @abstractmethod def fps(self) -> float` em `IFrameSource` e atualizados os mocks de teste correspondentes.
   - Tipagem polimórfica de `servant` e `master` como `IVideoBuffer` em `VideoReader` e anotação `# type: ignore[arg-type]` na chamada de `put()` no `read()`.
-- [ ] **9.2. Saneamento de Tipagem em `PlayerControl` e `VideoReader`:**
-  - Tipagem correta da alternância servant/master (`VideoBufferRight` $\leftrightarrow$ `VideoBufferLeft`) utilizando a interface base `IVideoBuffer`.
-  - Anotação explícita de variáveis de controle (`__current_frame_id`, `__current_frame: ndarray | None`).
+- [x] **9.2. Saneamento de Tipagem em `PlayerControl` e `VideoReader`:**
+  - Tipagem estrita de `PlayerControl` sem alterações comportamentais ou inclusão de `if`s mascaradores, usando anotações explícitas de tipo e comentários `# type: ignore` direcionados.
+  - Correção do fatiamento de lista no log lazy trace de `PlayerControl.__opencv_format`, restaurando o comportamento original (`ls[:10]`).
+  - Adicionado método abstrato `__getitem__` na interface `IVideoBuffer` e stub em `IFakeVideoBuffer`.
+  - Zero erros de Mypy em `PlayerControl` e `VideoReader`.
 - [ ] **9.3. Conformidade PEP 484 em Assinaturas Opcionais:**
   - Corrigir parâmetros com padrão `None` sem `| None` nas anotações (ex: `labels: list[str | None] | None = None` em `playlist.py` e `frame_ids: list[int] | None = None` em `manager.py`).
   - Anotar explicitamente os atributos de coleção `__right_videos: list[VideoInfo]` e `__left_videos: list[VideoInfo]`.
