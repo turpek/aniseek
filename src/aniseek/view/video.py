@@ -11,7 +11,7 @@ from aniseek.core.sources.registry import source_registry
 from aniseek.editing.manager import VideoManager
 from aniseek.editing.section import SectionManager
 from aniseek.view.input_handler import PynputKeyReader
-from aniseek.view.interfaces.command import Command
+from aniseek.view.interfaces.command import ButtonState, Command
 from aniseek.view.interfaces.input import InputHandler
 from aniseek.view.shortcuts import PYNPUT_SHORTCUTS, SHORTCUTS
 from aniseek.view.video_command import (
@@ -189,7 +189,7 @@ class FrameViewer:
             self._show(frame)
         self._update_title()
         delay = self.__video_manager.player.delay
-        return self.control(self.__key_reader.get_code(delay))
+        return self.control(self.__key_reader.get_code(delay), ButtonState.PRESS)
 
     def set_commands(self, video_controller: VideoController) -> None:
 
@@ -217,9 +217,9 @@ class FrameViewer:
         command.set_command('TogglePreviewCommand', TogglePreviewCommand(video_controller))
         command.set_command('SaveCommand', SaveCommand(video_controller))
 
-    def control(self, key):
+    def control(self, key, state: ButtonState):
         shortcut_key = self.__shortcuts.get(key, key)
-        self.command.executor_command(shortcut_key)
+        self.command.executor_command(shortcut_key, state)
         return key
 
     def read(self):

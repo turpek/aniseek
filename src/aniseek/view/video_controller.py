@@ -154,6 +154,13 @@ class VideoController:
     def restore_delay(self):
         self.__player.restore_delay()
 
+    def set_delay(self, value: int) -> None:
+        self.__player.set_delay(value)
+
+    @property
+    def delay(self) -> int:
+        return self.__player.delay
+
     def remove_frame(self):
         if isinstance(self.__player.frame_id, int):
             swap_buffer = self.__player.servant.is_task_complete()
