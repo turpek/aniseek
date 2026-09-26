@@ -8,7 +8,8 @@ Sua arquitetura é baseada em um sistema de duplo buffer concorrente (`VideoBuff
 
 ## ✨ Funcionalidades Principais
 
-- **Leitura Bidirecional Cooperativa (`VideoReader`):** Alternância instantânea de direção (`proceed` / `rewind`) com cache em memória entre buffers paralelos, eliminando redecodificação pesada.
+- **Leitura Bidirecional Cooperativa (`VideoReader`):** Alternância instantânea de direção (`proceed` / `rewind`) com cache em memória entre buffers paralelos, eliminando redecodificação pesada. Atravessa mais de **500+ FPS** em leitura reversa com dimensionamento adaptativo de buffer proporcional ao FPS do vídeo.
+- **Abertura Instantânea (TTFF):** O `OpenCVVideoSource` adota resolução *lazy* de propriedades eliminando checagens sincronamente bloqueantes na abertura, além de busca binária $O(\log N)$ com janela de tolerância para frames corrompidos.
 - **Leitores Unidirecionais Otimizados (`ForwardReader` e `ReverseReader`):** Leitura direta ou reversa com buffer único concorrente e baixo consumo de memória.
 - **Desacoplamento Total de Backend (`IFrameSource`):**
   - [`OpenCVVideoSource`](docs/sources.md): Decodificação de arquivos de vídeo via OpenCV.
