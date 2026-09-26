@@ -81,7 +81,7 @@ class PlayerControl:
             None
         """
         if self.__can_collect_frame():
-            logger.debug(f'colentando o frame de id {self.frame_id}')
+            logger.trace(f'Collecting frame {self.frame_id}')
             self.master.put(self.frame_id, self.__frame)
             if self.servant.is_task_complete():
                 self.frame_id = None
@@ -99,10 +99,11 @@ class PlayerControl:
             tuple[bool, ndarray | None]
         """
         if isinstance(frame, ndarray):
-            ls = [x[0] for x in self.servant._buffer._primary]
-            ms = [x[0] for x in self.master._buffer._primary]
-            logger.info(f'servant: {ls[:10]}')
-            logger.info(f'master: {ms[:10]}')
+            logger.opt(lazy=True).trace(
+                'servant: {s} | master: {m}',
+                s=lambda: [x[0] for x in self.servant._buffer._primary[:10]],
+                m=lambda: [x[0] for x in self.master._buffer._primary[:10]],
+            )
             return True, frame
         return False, None
 
@@ -140,7 +141,7 @@ class PlayerControl:
             None
         """
         if isinstance(self.servant, VideoBufferRight):
-            logger.debug('setando o modo rewind')
+            logger.debug('Setting rewind mode')
             self.servant, self.master = self.master, self.servant
 
     def proceed(self) -> None:
@@ -154,7 +155,7 @@ class PlayerControl:
             None
         """
         if isinstance(self.servant, VideoBufferLeft):
-            logger.debug('setando o modo proceed')
+            logger.debug('Setting proceed mode')
             self.servant, self.master = self.master, self.servant
 
     @property
@@ -162,14 +163,14 @@ class PlayerControl:
         return isinstance(self.servant, VideoBufferLeft)
 
     def set_pause(self):
-        logger.debug(f'setting the pause to {not self.__paused}')
+        logger.debug(f'Setting pause state to {not self.__paused}')
         self.__paused = not self.__paused
 
     def pause(self) -> bool:
         return self.__paused
 
     def set_quit(self):
-        logger.debug('preparando para sair...')
+        logger.debug('Preparing player shutdown...')
         self.__quit = True
 
     def quit(self) -> bool:
@@ -203,27 +204,27 @@ class PlayerControl:
     def increase_speed(self) -> None:
         delay = self.__adjust_delay(-1)
         if delay is not None:
-            logger.info(f'speed {self.__speed(delay):.2f}x {delay}')
+            logger.info(f'Playback speed set to {self.__speed(delay):.2f}x (delay={delay})')
 
     def decrease_speed(self) -> None:
         delay = self.__adjust_delay(+1)
         if delay is not None:
-            logger.info(f'speed {self.__speed(delay):.2f}x {delay}')
+            logger.info(f'Playback speed set to {self.__speed(delay):.2f}x (delay={delay})')
 
     def pause_delay(self) -> None:
         if self.__delay == 0:
-            logger.debug('unpause by delay')
+            logger.debug('Unpausing playback due to delay')
             self.__delay = self.__current_delay
             self.__read = False
         else:
-            logger.debug('pause by delay')
+            logger.debug('Pausing playback due to delay')
             self.__current_delay = self.__delay
             self.__delay = 0
             self.__read = True
 
     def restore_delay(self) -> None:
         delay = self.__default_delay
-        logger.info(f'speed {self.__speed(delay):.2f}x {delay}')
+        logger.info(f'Playback speed set to {self.__speed(delay):.2f}x (delay={delay})')
         if self.__delay > 0:
             self.__delay = self.__default_delay
         else:
@@ -246,7 +247,7 @@ class PlayerControl:
             self.__read = True
 
     def remove_frame(self) -> tuple[int | None, ndarray | None]:
-        logger.debug(f'servo {self.servant}')
+        logger.debug(f'Servant buffer: {self.servant}')
         if isinstance(self.__frame, ndarray) and not self.pause():
             frame_id, frame = self.frame_id, self.__frame
             if not self.master._buffer.empty() and self.master[0] == self.frame_id:
@@ -268,7 +269,7 @@ class PlayerControl:
         return False
 
     def set_frame(self, frame_id: int) -> None:
-        logger.debug(f'setting the frame for the frame_id {frame_id}')
+        logger.debug(f'Setting player target frame to {frame_id}')
         self.servant.set(frame_id)
 
     def _backward(self, frame_id: int) -> bool:
@@ -336,7 +337,7 @@ class PlayerControl:
             self.master.set(frame_id)
 
     def restore_frame(self, frame_id: int, frame: ndarray) -> None:
-        logger.debug(f'starting frame restoration {frame_id}')
+        logger.debug(f'Starting frame restoration for {frame_id}')
         self.__set_frame(frame_id)
         self.update_frame(frame_id, frame)
 

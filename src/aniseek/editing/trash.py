@@ -55,7 +55,7 @@ class Trash():
             self._stack.push(FrameWrapper(frame_id, frame))
 
     def undo(self) -> tuple[int, ndarray] | None:
-        logger.debug('iniciando a restauracao do frame')
+        logger.debug('Starting frame restoration')
         if self.can_undo():
             frames = self._stack.update_mementos(self)
             frame = self._stack.pop()
