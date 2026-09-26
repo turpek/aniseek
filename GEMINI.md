@@ -174,3 +174,22 @@ aniseek/
 - `OpenCVVideoSource` é a implementação padrão baseada em OpenCV (`cv2.VideoCapture`).
 - O core (`reader_task`, buffers, `VideoReader`) consome estritamente o contrato da interface (`frame_count`, `fps`, `seek`, `read`, `grab`, `is_opened`, `release`), eliminando totalmente `hasattr`/`getattr` dinâmicos ou dependência direta de `cv2` no motor de leitura.
 
+### 7.5. Controle de Repetição de Teclas (`HoldTimer`) e Ciclo de Vida (`ButtonState`)
+- **Ciclo de Vida:** O subsistema de input emite eventos com `ButtonState` (`PRESS`, `HOLD`, `RELEASE`).
+- **Composição de `HoldTimer`:** Os comandos com suporte a repetição contínua compõem internamente uma instância de `HoldTimer(delay, interval)`:
+  - `on_press()` executa imediatamente o primeiro frame e arma o timer.
+  - Se soltar antes do `hold_delay` (padrão 150ms), o `on_release()` cancela o timer, garantindo **precisão de exatamente 1 frame** por clique.
+  - Se mantido pressionado, `on_hold()` dispara repetidamente a cada `hold_interval` (padrão 30 FPS).
+- **Assinatura Pura:** `FrameViewer.set_commands` permanece estritamente puro, lendo os parâmetros de temporização diretamente do singleton `config`.
+
+### 7.6. Singleton Centralizado de Configuração (`config`)
+- Módulo `aniseek.config` expõe a instância `config` com tipagem estrita e validação para: `buffersize`, `image_fps`, `hold_delay`, `hold_interval`, `log_level`, `video_extensions` e `image_extensions`.
+- Suporte nativo a context manager com reversão automática: `with config(hold_delay=0.2, log_level="DEBUG"): ...`.
+- Restauração de padrões de fábrica via `config.reset()`.
+
+### 7.7. Arquitetura de Logs e Proteção do Hot-Path
+- **Zero I/O no Hot-Path:** Logs a cada frame lido, decodificado ou exibido são estritamente proibidos em modo normal de produção para garantir 60+ FPS sem engasgos de console.
+- **Micro-Eventos em `TRACE`:** Detalhes de enfileiramento de frames e inspeção de filas de buffers usam `logger.trace` com formatação *lazy* (`logger.opt(lazy=True).trace(...)`), resultando em **zero alocações de memória e zero custo de CPU** quando o nível `TRACE` está desativado.
+- **Padronização em Inglês:** 100% das mensagens de log em todo o pacote utilizam o padrão técnico em inglês (`TRACE`, `DEBUG`, `INFO`, `WARNING`, `ERROR`, `CRITICAL`).
+- **Controle Dinâmico:** Nível ativo gerenciado dinamicamente via `config.log_level`.
+

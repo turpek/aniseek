@@ -208,12 +208,40 @@ with FrameViewer.from_default("video.mp4") as viewer:
 
 ---
 
-## 7. Tabela Completa de Atalhos Padrão
+## 7. Ciclo de Vida de Eventos e Repetição (`HoldTimer`)
+
+Os comandos do `FrameViewer` suportam o ciclo de vida completo do botão via enumeração `ButtonState` (`PRESS`, `HOLD` e `RELEASE`). Para eliminar saltos acidentais de múltiplos frames no clique rápido e permitir aceleração contínua suave ao segurar uma tecla, os comandos contínuos utilizam internamente um **`HoldTimer`**:
+
+```python
+class HoldTimer:
+    def __init__(self, delay: float = 0.15, interval: float = 1.0 / 30) -> None:
+        ...
+```
+
+### Como Funciona:
+1. **No clique rápido (`ButtonState.PRESS`):** O comando executa exatamente uma vez (`on_press`) e ativa o timer com a tolerância de atraso (`delay`). Se a tecla for solta em menos de 150ms (`ButtonState.RELEASE`), o timer é cancelado e **nenhum frame adicional é lido**.
+2. **Ao manter pressionado (`ButtonState.HOLD`):** Enquanto a tecla permanecer pressionada, após o `delay` inicial expirar, o timer dispara a execução repetida a cada `interval` (padrão: 30 FPS).
+3. **Na liberação (`ButtonState.RELEASE`):** O comando finaliza o ciclo e desliga o timer com segurança.
+
+### Customização Global dos Tempos:
+Os parâmetros temporais são configurados centralmente no singleton `config`:
+
+```python
+from aniseek import config
+
+# Aumentar a tolerância do clique para 200ms e a taxa de repetição para 60 FPS:
+config.hold_delay = 0.20
+config.hold_interval = 1.0 / 60
+```
+
+---
+
+## 8. Tabela Completa de Atalhos Padrão
 
 | Tecla | Modificador | Comando | Descrição |
 | :---: | :---: | :--- | :--- |
-| **`d`** | — | `ProceesCommand` | Avança frame a frame (+1). |
-| **`a`** | — | `RewindCommand` | Retrocede frame a frame (-1). |
+| **`d`** ou **`→`** | — | `ProceedCommand` | Avança frame a frame (+1) com repetição contínua ao segurar. |
+| **`a`** ou **`←`** | — | `RewindCommand` | Retrocede frame a frame (-1) com repetição contínua ao segurar. |
 | **`espaço`** | — | `PauseDelayCommand` | Alterna pausa de delay para edição ou retoma velocidade. |
 | **`b`** | — | `PauseCommand` | Pausa total da reprodução. |
 | **`x`** | — | `RemoveFrameCommand` | Remove frame atual e envia para a lixeira (`Trash`). |
@@ -221,8 +249,8 @@ with FrameViewer.from_default("video.mp4") as viewer:
 | **`[`** / **`]`** | — | `DecreaseSpeed` / `IncreaseSpeed` | Ajusta delay de exibição entre frames. |
 | **`=`** | — | `RestoreDelayCommand` | Restaura a velocidade padrão de reprodução. |
 | **`w`** | `Ctrl` / `Shift` / `W` | `SaveCommand` | Salva o estado das seções explicitamente em disco. |
-| **`d`** | `Ctrl` / `Shift` | `NextSectionCommand` | Salta para o início da próxima seção. |
-| **`a`** | `Ctrl` / `Shift` | `PrevSectionCommand` | Salta para o fim da seção anterior. |
+| **`d`** ou **`↑`** | `Ctrl` / `Shift` | `NextSectionCommand` | Salta para o início da próxima seção. |
+| **`a`** ou **`↓`** | `Ctrl` / `Shift` | `PrevSectionCommand` | Salta para o fim da seção anterior. |
 | **`s`** | `Ctrl` / `Shift` | `SplitSectionCommand` | Divide a seção no frame atual (**S**plit). |
 | **`j`** | `Ctrl` / `Shift` | `JoinSectionCommand` | Une a seção atual com a adjacente (**J**oin). |
 | **`x`** | `Ctrl` / `Shift` | `RemoveSectionCommand`| Remove a seção atual inteira. |

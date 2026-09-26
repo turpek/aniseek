@@ -113,7 +113,46 @@ O módulo `aniseek.view` contém o visualizador interativo em OpenCV, a captura 
    - `PYNPUT_SHORTCUTS`: Mapeamento otimizado para teclado de sistema com modificadores `Ctrl` e `Shift`.
    - `CV2_SHORTCUTS`: Mapeamento adaptado para o backend OpenCV com suporte a `Shift` e maiúsculas.
 
-4. **Padrão Command (`aniseek.view.video_command`):**
+4. **Padrão Command e Ciclo de Vida (`aniseek.view.video_command`):**
+   - Suporte nativo ao ciclo de vida via `ButtonState.PRESS`, `ButtonState.HOLD` e `ButtonState.RELEASE`.
+   - Composição de `HoldTimer` para permitir avanço de 1 frame único em clique curto e aceleração contínua sem saltos acidentais ao manter pressionado.
    - `Invoker`: Despacha comandos associados a teclas ou identificadores.
    - Comandos Concretos: `ProceedCommand`, `RewindCommand`, `PauseCommand`, `RemoveFrameCommand`, `UndoFrameCommand`, `SplitSectionCommand`, `JoinSectionCommand`, `SaveCommand`, etc.
    - **`MacroCommand`:** Implementa o padrão Composite para agrupar e executar sequências ordenadas de múltiplos comandos.
+
+---
+
+## 4. Configuração Global Centralizada (`aniseek.config`)
+
+O `aniseek` centraliza parâmetros de ambiente e execução no singleton `config` (`Config`), acessível diretamente no namespace raiz da biblioteca:
+
+```python
+from aniseek import config
+```
+
+### Propriedades Gerenciadas:
+- **`buffersize` (`int`, padrão `30`):** Capacidade da janela deslizante do buffer de vídeo.
+- **`image_fps` (`float`, padrão `24.0`):** Taxa de quadros assumida na leitura de sequências de imagens quando não informada.
+- **`hold_delay` (`float`, padrão `0.15`):** Tolerância de tempo (em segundos) antes de iniciar repetição de tecla mantida pressionada.
+- **`hold_interval` (`float`, padrão `1.0 / 30`):** Intervalo entre disparos repetidos de teclas mantidas pressionadas (taxa de repetição).
+- **`log_level` (`str`, padrão `"INFO"`):** Nível de corte do Loguru (`"TRACE"`, `"DEBUG"`, `"INFO"`, `"WARNING"`, `"ERROR"`, `"CRITICAL"`).
+- **`video_extensions` / `image_extensions`:** Tuplas normalizadas de extensões reconhecidas pelo `SourceRegistry`.
+
+### Gerenciamento de Contexto e Reset:
+- `config(chave=valor)`: Gerenciador de contexto que aplica parâmetros temporariamente em bloco `with` e restaura o estado anterior ao sair (mesmo em caso de exceção).
+- `config.reset()`: Restaura instantaneamente todos os valores para os padrões de fábrica.
+
+---
+
+## 5. Política de Logs e Proteção do Hot-Path
+
+Para garantir reprodução contínua e sem engasgos a **60+ FPS**, o `aniseek` adota uma política rigorosa de isolamento de I/O de console:
+
+### Taxonomia de Níveis:
+1. **`TRACE` (Hot-Path):** Operações que ocorrem a cada frame lido, enfileirado ou exibido (`Displaying frame`, `Putting frame into vbuffer`). Avaliado de forma *lazy* via `logger.opt(lazy=True).trace(...)` para **custo zero de CPU** quando desativado.
+2. **`DEBUG` (Eventos do Sistema):** Transições de estado esporádicas (mudança de sentido `proceed`/`rewind`, inicialização de threads, cálculo de janelas de buffer).
+3. **`INFO` (Marcos do Usuário):** Ações intencionais de alto nível (salvamento de seções, união de seções, alteração de velocidade de reprodução).
+4. **`WARNING` (Ações Inválidas Rejeitadas):** Comandos bloqueados por estado inconsistente (tentativa de corte em modo preview, divisão no primeiro/último frame).
+5. **`ERROR` / `CRITICAL`:** Falhas de E/S ou quebras irrecuperáveis de sistema.
+
+O controle dinâmico do nível é realizado via `config.log_level = "NIVEL"`, sem necessidade de reiniciar a aplicação ou reconfigurar handlers manualmente.
