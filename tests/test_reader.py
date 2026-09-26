@@ -21,6 +21,10 @@ class FakeFrameSource(IFrameSource):
     def frame_count(self) -> int:
         return self._frame_count
 
+    @property
+    def fps(self) -> float:
+        return 24.0
+
     def seek(self, frame_id: int) -> None:
         self.cursor = frame_id
 

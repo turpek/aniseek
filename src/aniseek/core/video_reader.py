@@ -12,6 +12,7 @@ from aniseek.config import config
 from aniseek.core.buffer_left import VideoBufferLeft
 from aniseek.core.buffer_right import VideoBufferRight
 from aniseek.core.frame_mapper import FrameMapper
+from aniseek.core.interfaces.buffer import IVideoBuffer
 from aniseek.core.interfaces.source import IFrameSource
 from aniseek.core.sources.registry import source_registry
 from aniseek.time_utils import resolve_frame_range
@@ -278,6 +279,8 @@ class VideoReader(BaseVideoReader):
             buffersize=self.buffersize_left,
         )
         self._frame_id: int | None = None
+        self.servant: IVideoBuffer
+        self.master: IVideoBuffer
 
         if direction == Direction.REVERSE:
             if len(self.frame_ids) > 0:
@@ -358,7 +361,8 @@ class VideoReader(BaseVideoReader):
             return False, None
 
         self._frame_id, frame = self.servant.get()
-        self.master.put(self._frame_id, frame)
+        if frame is not None:
+            self.master.put(self._frame_id, frame)  # type: ignore[arg-type]
         return frame is not None, frame
 
     def set_frame(self, frame_id: int) -> None:

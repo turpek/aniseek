@@ -6,10 +6,18 @@ from numpy import ndarray
 class IFrameSource(ABC):
     """Generic interface for frame extraction sources."""
 
+    buffersize: int = 1
+
     @property
     @abstractmethod
     def frame_count(self) -> int:
         """Total number of frames available."""
+        ...
+
+    @property
+    @abstractmethod
+    def fps(self) -> float:
+        """Frame rate of the video source in frames per second."""
         ...
 
     @abstractmethod

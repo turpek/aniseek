@@ -82,6 +82,10 @@ def test_registry_allows_custom_video_source(tmp_path):
         def frame_count(self) -> int:
             return 100
 
+        @property
+        def fps(self) -> float:
+            return 24.0
+
         def seek(self, frame_id: int) -> None:
             pass
 
@@ -127,6 +131,10 @@ def test_registry_context_manager_use(tmp_path):
         @property
         def frame_count(self) -> int:
             return 10
+
+        @property
+        def fps(self) -> float:
+            return 24.0
 
         def seek(self, frame_id: int) -> None:
             pass
