@@ -27,7 +27,19 @@ from aniseek.core.sources.opencv import OpenCVVideoSource
 from aniseek.core.video_reader import VideoReader
 from aniseek.editing.playlist import Playlist
 from aniseek.editing.section import SectionManager, VideoSection
-from aniseek.view import FrameViewer, NextVideoCommand, PrevVideoEndCommand
+from aniseek.view import FrameViewer, NextVideoCommand
+
+try:
+    from aniseek.view import PrevVideoEndCommand
+    HAS_PREV_VIDEO_END = True
+except ImportError:
+    HAS_PREV_VIDEO_END = False
+    from aniseek.view import (
+        JumpSectionEndCommand,
+        MacroCommand,
+        PrevVideoCommand,
+        RewindCommand,
+    )
 
 # Desativa logs verbose durante a execução dos benchmarks para não distorcer medições
 logger.disable("aniseek")
@@ -137,14 +149,22 @@ def bench_prev_video_end(v1: Path, v2: Path, runs: int = 5) -> tuple[float, floa
     playlist = Playlist(videos=[v1, v2])
     viewer = FrameViewer.from_playlist(playlist=playlist)
     ctrl = viewer.video_controller
-    cmd_prev_end = PrevVideoEndCommand(ctrl, prefill_frames=30)
+    if HAS_PREV_VIDEO_END:
+        cmd_prev_end = PrevVideoEndCommand(ctrl, prefill_frames=30)
+    else:
+        cmd_prev_end = MacroCommand([
+            PrevVideoCommand(ctrl),
+            RewindCommand(ctrl),
+            JumpSectionEndCommand(ctrl),
+        ])
     cmd_next = NextVideoCommand(ctrl)
 
     transition_times: list[float] = []
     rewind_latencies: list[float] = []
 
     for _ in range(runs):
-        # Avança para o vídeo 2
+        # Avança para o vídeo 2 em modo proceed
+        ctrl.proceed()
         cmd_next.on_press()
         viewer.read()
 
