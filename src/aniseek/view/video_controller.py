@@ -4,6 +4,7 @@ from pathlib import Path
 
 from loguru import logger
 
+from aniseek.config import config
 from aniseek.core.interfaces.source import IFrameSource
 from aniseek.editing.manager import VideoManager
 from aniseek.editing.playlist import Playlist
@@ -38,7 +39,7 @@ class VideoController:
         self.__injected_sections = sections
 
         if video_manager is None:
-            video_manager = VideoManager(60, False)
+            video_manager = VideoManager(config.buffersize, False)
         self.video_manager = video_manager
 
         if playlist is not None:
@@ -59,7 +60,7 @@ class VideoController:
                 f"Expected source to be an instance of IFrameSource, got {type(source).__name__}"
             )
         if video_manager is None:
-            video_manager = VideoManager(60, False)
+            video_manager = VideoManager(config.buffersize, False)
 
         ctrl = cls.__new__(cls)
         ctrl.__player = None
