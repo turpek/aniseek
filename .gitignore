@@ -15,4 +15,5 @@ __pycache__/
 *.json
 gp.py
 .python-version
+benchmarks/data/
 
