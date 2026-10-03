@@ -62,3 +62,19 @@ def test_extract_keyframe_indices_success(tmp_path, monkeypatch):
 
     result = extract_keyframe_indices(dummy, 24.0)
     assert result == [0, 24, 60]
+
+
+def test_parse_mkv_cues_binary_success(tmp_path):
+    """Extrai quadros-chave diretamente de binario MKV com bloco Cues."""
+    dummy_mkv = tmp_path / "synthetic.mkv"
+    cue_point = b"\xbb\x89\xb3\x82\x03\xe8\xb7\x83\xf7\x81\x01"
+    cues_data = b"\x1c\x53\xbb\x6b" + bytes([0x80 | len(cue_point)]) + cue_point
+    data = bytearray(b"\x18\x53\x80\x67\x80")
+    data.extend(b"\x00" * 5)
+    data.extend(b"\x1c\x53\xbb\x6b\x53\xac\x81\x20")
+    data.extend(b"\x00" * (37 - len(data)))
+    data.extend(cues_data)
+    dummy_mkv.write_bytes(bytes(data))
+
+    result = extract_keyframe_indices(dummy_mkv, 24.0)
+    assert result == [0, 24]
