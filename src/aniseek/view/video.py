@@ -220,9 +220,11 @@ class FrameViewer:
 
             vname_prefix = ''
             if self.__video_controller.playlist is not None:
-                vinfo = self.__video_controller.playlist.get_video_info()
+                playlist = self.__video_controller.playlist
+                vinfo = playlist.get_video_info()
                 if vinfo is not None:
-                    vname_prefix = f'[{vinfo.label}] '
+                    count_str = f'[{playlist.current_index}/{len(playlist)}] ' if len(playlist) > 0 else ''
+                    vname_prefix = f'{count_str}[{vinfo.label}] '
 
             if self.__video_controller.is_preview:
                 title = f'videoseq - {vname_prefix}[PREVIEW | Frame: {frame_id}] [{direction_str}]{paused_str}'

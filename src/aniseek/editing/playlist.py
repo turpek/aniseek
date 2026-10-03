@@ -115,3 +115,27 @@ class Playlist:
             False: Se não chegou no final da lista.
         """
         return len(self.__right_videos) == 0
+
+    def __len__(self) -> int:
+        """
+        Retorna o total de vídeos na playlist.
+
+        Returns:
+            int: Quantidade de itens na playlist.
+        """
+        count = len(self.__left_videos) + len(self.__right_videos)
+        if self.__video_file is not None:
+            count += 1
+        return count
+
+    @property
+    def current_index(self) -> int:
+        """
+        Retorna o índice 1-based do vídeo atual na playlist (1 a N).
+
+        Returns:
+            int: Posição atual de reprodução.
+        """
+        if self.__video_file is None:
+            return 0
+        return len(self.__left_videos) + 1
