@@ -18,8 +18,10 @@ from aniseek.view.video_command import (
     MacroCommand,
     NextSectionCommand,
     NextVideoCommand,
+    NextVideoEndCommand,
     PrevSectionCommand,
     PrevVideoCommand,
+    PrevVideoEndCommand,
     ProceesCommand,
     RemoveFrameCommand,
     RemoveSectionCommand,
@@ -300,3 +302,81 @@ def test_continuous_command_lifecycle_with_hold_timer(cmd_cls, method_name):
     # RELEASE: desativa o timer
     cmd.executor(ButtonState.RELEASE)
     assert not cmd.timer.collapsed()
+
+
+def test_next_video_end_command_at_end_of_playlist_does_nothing():
+    """Verifica que NextVideoEndCommand não avança nem altera estado se playlist estiver no fim."""
+    mock_receiver = MagicMock()
+    mock_receiver.playlist.is_end.return_value = True
+    cmd = NextVideoEndCommand(mock_receiver)
+
+    cmd.executor(ButtonState.PRESS)
+
+    mock_receiver.next_video.assert_not_called()
+    mock_receiver.rewind.assert_not_called()
+
+
+def test_next_video_end_command_prefills_and_switches_to_rewind():
+    """Verifica salto ao final do próximo vídeo com prefill em proceed e reversão para rewind."""
+    mock_receiver = MagicMock()
+    mock_receiver.playlist.is_end.return_value = False
+    mock_receiver.section_manager.current_section.mapping = list(range(100))
+    cmd = NextVideoEndCommand(mock_receiver, prefill_frames=30)
+
+    cmd.executor(ButtonState.PRESS)
+
+    mock_receiver.next_video.assert_called_once()
+    mock_receiver.proceed.assert_called_once()
+    mock_receiver.set_frame.assert_called_once_with(69)
+    assert mock_receiver.read.call_count == 31
+    mock_receiver.rewind.assert_called_once()
+
+
+def test_prev_video_end_command_at_beginning_of_playlist_does_nothing():
+    """Verifica que PrevVideoEndCommand não recua nem altera estado se playlist estiver no início."""
+    mock_receiver = MagicMock()
+    mock_receiver.playlist.is_beginning.return_value = True
+    cmd = PrevVideoEndCommand(mock_receiver)
+
+    cmd.executor(ButtonState.PRESS)
+
+    mock_receiver.prev_video.assert_not_called()
+    mock_receiver.rewind.assert_not_called()
+
+
+def test_prev_video_end_command_prefills_and_switches_to_rewind():
+    """Verifica salto ao final do vídeo anterior com prefill em proceed e reversão para rewind."""
+    mock_receiver = MagicMock()
+    mock_receiver.playlist.is_beginning.return_value = False
+    mock_receiver.section_manager.current_section.mapping = list(range(50))
+    cmd = PrevVideoEndCommand(mock_receiver, prefill_frames=30)
+
+    cmd.executor(ButtonState.PRESS)
+
+    mock_receiver.prev_video.assert_called_once()
+    mock_receiver.proceed.assert_called_once()
+    mock_receiver.set_frame.assert_called_once_with(19)
+    assert mock_receiver.read.call_count == 31
+    mock_receiver.rewind.assert_called_once()
+
+
+@pytest.mark.parametrize("cmd_cls", [NextVideoEndCommand, PrevVideoEndCommand], ids=["next_end", "prev_end"])
+def test_video_end_command_hold_timer_lifecycle(cmd_cls):
+    """Verifica ciclo do HoldTimer em comandos de salto para o final com PRESS, HOLD e RELEASE."""
+    mock_receiver = MagicMock()
+    mock_receiver.playlist = None
+    mock_receiver.section_manager = None
+    cmd = cmd_cls(mock_receiver)
+
+    with patch("time.perf_counter", return_value=100.0):
+        cmd.executor(ButtonState.PRESS)
+    assert cmd.timer._target is not None
+
+    with patch("time.perf_counter", return_value=100.08):
+        cmd.executor(ButtonState.HOLD)
+
+    with patch("time.perf_counter", return_value=100.0 + cmd.timer.delay + 0.01):
+        cmd.executor(ButtonState.HOLD)
+
+    cmd.executor(ButtonState.RELEASE)
+    assert cmd.timer._target is None

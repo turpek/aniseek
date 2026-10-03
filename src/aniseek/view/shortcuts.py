@@ -14,7 +14,11 @@ CV2_SHORTCUTS: dict[int, str] = {
     ord(']'): 'IncreaseSpeedCommand',
     ord('['): 'DecreaseSpeedCommand',
     ord('n'): 'NextVideoCommand',
+    IP.SHIFT_BIT | ord('n'): 'NextVideoEndCommand',
+    ord('N'): 'NextVideoEndCommand',
     ord('p'): 'PrevVideoCommand',
+    IP.SHIFT_BIT | ord('p'): 'PrevVideoEndCommand',
+    ord('P'): 'PrevVideoEndCommand',
     # Frame operations (no modifier)
     ord('d'): 'ProceesCommand',
     ord('a'): 'RewindCommand',
@@ -55,7 +59,9 @@ PYNPUT_SHORTCUTS: dict[int, str] = {
     ord(']'): 'IncreaseSpeedCommand',
     ord('['): 'DecreaseSpeedCommand',
     ord('n'): 'NextVideoCommand',
+    IP.CTRL_BIT | ord('n'): 'NextVideoEndCommand',
     ord('p'): 'PrevVideoCommand',
+    IP.CTRL_BIT | ord('p'): 'PrevVideoEndCommand',
     # Frame operations (no modifier)
     ord('d'): 'ProceesCommand',
     ord('a'): 'RewindCommand',
