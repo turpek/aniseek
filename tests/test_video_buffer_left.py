@@ -976,3 +976,10 @@ def test_buffer_VideoBufferLeft_com_buffer_vazio_apos_um_get(myvideo):
     result_end_frame = myvideo.end_frame()
     assert result_start_frame == expect_start_frame
     assert result_end_frame == expect_end_frame
+
+
+@pytest.mark.parametrize('myvideo', [([25], 10)], indirect=True)
+def test_buffer_video_buffer_left_set_single_frame_mapping_out_of_bounds(myvideo):
+    """Garante que set com frame_id maior que o mapeamento de 1 frame não cause IndexError."""
+    myvideo.set(26)
+    assert myvideo.end_frame() == 25
