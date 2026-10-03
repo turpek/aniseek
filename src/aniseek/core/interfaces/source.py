@@ -60,3 +60,11 @@ class IFrameSource(ABC):
     def release(self) -> None:
         """Release any resources held by the source."""
         ...
+
+    def get_keyframes(self) -> list[int] | None:
+        """Return list of keyframe frame indices if available.
+
+        Returns:
+            list[int] | None: Sorted list of keyframe indices, or None.
+        """
+        return None

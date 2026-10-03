@@ -173,3 +173,54 @@ def test_opencv_source_custom_buffersize_and_fps(tmp_path, monkeypatch):
 
     assert source.buffersize == 45
     assert source.fps == 60.0
+
+
+def test_opencv_source_finds_frame_count_via_keyframe_candidates(tmp_path, monkeypatch):
+    """Localiza o ultimo frame decodificavel atraves de candidatos de keyframes."""
+    dummy_file = tmp_path / "video.mp4"
+    dummy_file.touch()
+
+    class TruncatedVideoCapture(MyVideoCapture):
+        def grab(self) -> bool:
+            if self.index >= 350:
+                return False
+            self.index += 1
+            return True
+
+    mock_cap = TruncatedVideoCapture(isopened=True, frame_count=500)
+    monkeypatch.setattr("cv2.VideoCapture", lambda _: mock_cap)
+
+    source = OpenCVVideoSource(dummy_file)
+    monkeypatch.setattr(source, "get_keyframes", lambda: [0, 100, 200, 300, 400])
+
+    actual = source.validate_frame_count()
+    assert actual == 350
+    assert source.frame_count == 350
+
+
+def test_opencv_source_tail_probe_adjusts_frame_count_immediately(tmp_path, monkeypatch):
+    """Ajusta frame count diretamente via probe reverso na cauda do stream."""
+    dummy_file = tmp_path / "video.mp4"
+    dummy_file.touch()
+
+    class OffByOneVideoCapture(MyVideoCapture):
+        def read(self, image=None):
+            if self.index >= 99:
+                return False, None
+            return super().read(image)
+
+        def grab(self) -> bool:
+            if self.index >= 99:
+                return False
+            return super().grab()
+
+    mock_cap = OffByOneVideoCapture(isopened=True, frame_count=100)
+    monkeypatch.setattr("cv2.VideoCapture", lambda _: mock_cap)
+
+    source = OpenCVVideoSource(dummy_file)
+    source.seek(99)
+    ret, frame = source.read()
+
+    assert ret is False
+    assert frame is None
+    assert source.frame_count == 99
