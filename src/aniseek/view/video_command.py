@@ -216,7 +216,7 @@ class NextVideoEndCommand(Command):
         start_frame = max(mapping[0], target_frame - self.prefill_frames)
         self.receiver.set_frame(start_frame)
 
-        for _ in range(target_frame - start_frame):
+        for _ in range(target_frame - start_frame + 1):
             self.receiver.read()
 
         self.receiver.rewind()
@@ -283,7 +283,7 @@ class PrevVideoEndCommand(Command):
         start_frame = max(mapping[0], target_frame - self.prefill_frames)
         self.receiver.set_frame(start_frame)
 
-        for _ in range(target_frame - start_frame):
+        for _ in range(target_frame - start_frame + 1):
             self.receiver.read()
 
         self.receiver.rewind()
