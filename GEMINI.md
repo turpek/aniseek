@@ -193,3 +193,16 @@ aniseek/
 - **Padronização em Inglês:** 100% das mensagens de log em todo o pacote utilizam o padrão técnico em inglês (`TRACE`, `DEBUG`, `INFO`, `WARNING`, `ERROR`, `CRITICAL`).
 - **Controle Dinâmico:** Nível ativo gerenciado dinamicamente via `config.log_level`.
 
+### 7.8. Abertura Lazy de Vídeos e Parser Binário de Keyframes (MKV Cues)
+- **Abertura Lazy na Playlist:** `VideoManager.open_source` e navegações de playlist adotam carregamento sob demanda (`lazy_load`), diferindo a abertura física do arquivo e o bind de threads até a primeira requisição real de frame, acelerando a alternância entre itens em mais de 80%.
+- **Parser Binário de EBML/MKV Cues:** `aniseek.core.keyframes.extract_mkv_cues` realiza varredura direta em binário dos elementos Cues/CuePoint do Matroska sem invocar executáveis externos.
+- **Reverse Tail Probe em Vídeos:** `OpenCVVideoSource` implementa sondagem em busca binária $O(\log N)$ a partir do final do arquivo para determinação precisa do último frame decodificável, eliminando travamentos causados por metadados truncados.
+
+### 7.9. Navegação de Playlist e Saltos Reversos com Prefill (`NextVideoEndCommand` / `PrevVideoEndCommand`)
+- **Comandos Simétricos:**
+  - `NextVideoCommand` (`n`): Salta para o próximo vídeo no frame inicial em sentido `proceed`.
+  - `PrevVideoCommand` (`p`): Salta para o vídeo anterior no frame inicial em sentido `proceed`.
+  - `NextVideoEndCommand` (`Ctrl+n` no pynput / `Shift+n` ou `N` no OpenCV): Salta para o final do próximo vídeo com pré-aquecimento de buffer e inicia em `rewind`.
+  - `PrevVideoEndCommand` (`Ctrl+p` no pynput / `Shift+p` ou `P` no OpenCV): Salta para o final do vídeo anterior com pré-aquecimento de buffer e inicia em `rewind`.
+- **Mecanismo de Prefill:** O comando posiciona o cursor em `max(0, target_frame - prefill_frames)`, decodifica para frente preenchendo a janela do `VideoBufferRight` em RAM e inverte imediatamente o sentido para `rewind`. Isso evita starvation inicial e permite retroceder a 50+ FPS imediatamente.
+

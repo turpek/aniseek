@@ -48,8 +48,9 @@ O módulo `aniseek.core` é o coração do pacote. É completamente desacoplado 
      - Fornece `IFakeVideoBuffer` como classe base de dublê para testes unitários rápidos.
 
 3. **Implementações Nativas de Fonte (`aniseek.core.sources`):**
-   - **`OpenCVVideoSource`:** Decodificador de vídeos via OpenCV com TTFF instantâneo (*lazy*) e busca binária $O(\log N)$ tolerante a frames corrompidos.
+   - **`OpenCVVideoSource`:** Decodificador de vídeos via OpenCV com TTFF instantâneo (*lazy*), reverse tail probe e busca binária $O(\log N)$ tolerante a frames corrompidos.
    - **`ImageSource`:** Decodificador de sequências de imagens em diretório (`.png`, `.jpg`, `.jpeg`, `.webp`, `.bmp`).
+   - **Indexador de Keyframes (`aniseek.core.keyframes`):** Parser binário puro de EBML / Matroska Cues para extração de keyframes em milissegundos sem invocar ferramentas externas.
 
 4. **Gerenciador de Fontes (`SourceRegistry` em `aniseek.core.sources.registry`):**
    - Singleton global (`source_registry`) que define as classes padrão para vídeo e imagens.
@@ -97,7 +98,7 @@ O módulo `aniseek.editing` gerencia o ciclo de vida de cortes, histórico de de
 
 5. **Gerenciador Central (`VideoManager`):**
    - Orquestra os componentes do `core` (buffers, sources, mapping) com os componentes de `editing` (seções, trash, player).
-   - Suporta injeção de fontes (`load_source`, `open_source`) e resolução flexível de seções (`resolve_section_manager`).
+   - Suporta injeção de fontes (`load_source`, `open_source`), resolução flexível de seções (`resolve_section_manager`) e **abertura lazy de vídeos** (`lazy_load`), postergando a abertura e alocação do decodificador até a primeira leitura real de frame.
 
 6. **Persistência Explícita (`SectionService`):**
    - O salvamento é estritamente explícito via `.save_section_manager()`. Não há gravação automática em disco na abertura ou ao fechar.
@@ -121,14 +122,14 @@ O módulo `aniseek.view` contém o visualizador interativo em OpenCV, a captura 
    - **`CV2KeyReader` (Fallback):** Captura eventos via `cv2.waitKeyEx()`.
 
 3. **Mapeamento de Atalhos (`aniseek.view.shortcuts`):**
-   - `PYNPUT_SHORTCUTS`: Mapeamento otimizado para teclado de sistema com modificadores `Ctrl` e `Shift`.
+   - `PYNPUT_SHORTCUTS`: Mapeamento otimizado para teclado de sistema com modificadores `Ctrl` e teclas sem modificador.
    - `CV2_SHORTCUTS`: Mapeamento adaptado para o backend OpenCV com suporte a `Shift` e maiúsculas.
 
 4. **Padrão Command e Ciclo de Vida (`aniseek.view.video_command`):**
    - Suporte nativo ao ciclo de vida via `ButtonState.PRESS`, `ButtonState.HOLD` e `ButtonState.RELEASE`.
    - Composição de `HoldTimer` para permitir avanço de 1 frame único em clique curto e aceleração contínua sem saltos acidentais ao manter pressionado.
    - `Invoker`: Despacha comandos associados a teclas ou identificadores.
-   - Comandos Concretos: `ProceedCommand`, `RewindCommand`, `PauseCommand`, `RemoveFrameCommand`, `UndoFrameCommand`, `SplitSectionCommand`, `JoinSectionCommand`, `SaveCommand`, etc.
+   - Comandos Concretos: `ProceedCommand`, `RewindCommand`, `PauseCommand`, `RemoveFrameCommand`, `UndoFrameCommand`, `SplitSectionCommand`, `JoinSectionCommand`, `SaveCommand`, `NextVideoCommand`, `PrevVideoCommand`, `NextVideoEndCommand`, `PrevVideoEndCommand`, etc.
    - **`MacroCommand`:** Implementa o padrão Composite para agrupar e executar sequências ordenadas de múltiplos comandos.
 
 ---

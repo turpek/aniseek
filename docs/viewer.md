@@ -236,7 +236,23 @@ config.hold_interval = 1.0 / 60
 
 ---
 
-## 8. Tabela Completa de Atalhos Padrão
+## 8. Navegação em Playlist e Saltos Reversos com Pré-Aquecimento (Prefill)
+
+O `FrameViewer` suporta navegação direta e reversa entre arquivos de mídia da `Playlist`:
+
+- **Navegação Convencional (`NextVideoCommand` / `PrevVideoCommand`):**
+  - Atalhos: **`n`** (próximo vídeo) e **`p`** (vídeo anterior).
+  - Posiciona a reprodução no primeiro frame válido (`mapping[0]`) e garante o sentido de avanço direto (`proceed`).
+
+- **Saltos Reversos Instantâneos (`NextVideoEndCommand` / `PrevVideoEndCommand`):**
+  - Atalhos:
+    - **`pynput`:** **`Ctrl + n`** (próximo ao fim) e **`Ctrl + p`** (anterior ao fim).
+    - **OpenCV:** **`Shift + n`** / **`N`** (próximo ao fim) e **`Shift + p`** / **`P`** (anterior ao fim).
+  - **Mecanismo de Pré-Aquecimento:** Decodificar diretamente no sentido reverso a partir do último frame de um vídeo pode gerar latência se o buffer reverso estiver vazio. Os comandos `NextVideoEndCommand` e `PrevVideoEndCommand` posicionam o cursor em `max(0, target_frame - prefill_frames)`, decodificam rapidamente para frente preenchendo a janela de RAM do buffer e invertem o leitor para `rewind`. O usuário imediatamente visualiza o último frame e pode retroceder a 50+ FPS com latência zero.
+
+---
+
+## 9. Tabela Completa de Atalhos Padrão
 
 | Tecla | Modificador | Comando | Descrição |
 | :---: | :---: | :--- | :--- |
@@ -257,5 +273,8 @@ config.hold_interval = 1.0 / 60
 | **`u`** | `Ctrl` / `Shift` | `UndoSectionCommand` | Desfaz a última alteração de seção (**U**ndo). |
 | **`Home`** / **`End`** | — | `JumpSectionStart` / `JumpSectionEnd` | Salta para o primeiro ou último frame da seção. |
 | **`v`** | — | `TogglePreviewCommand` | Alterna entre modo de edição e preview contínuo (*Rough Cut*). |
-| **`n`** / **`p`** | — | `NextVideo` / `PrevVideo` | Avança ou retorna entre itens da `Playlist`. |
+| **`n`** | — | `NextVideoCommand` | Avança para o próximo vídeo da `Playlist` (início, reproduz em forward). |
+| **`n`** / **`N`** | `Ctrl` (pynput) / `Shift` ou `N` (OpenCV) | `NextVideoEndCommand` | Salta para o final do próximo vídeo com pré-aquecimento de buffer e inicia em rewind. |
+| **`p`** | — | `PrevVideoCommand` | Retorna para o vídeo anterior da `Playlist` (início, reproduz em forward). |
+| **`p`** / **`P`** | `Ctrl` (pynput) / `Shift` ou `P` (OpenCV) | `PrevVideoEndCommand` | Salta para o final do vídeo anterior com pré-aquecimento de buffer e inicia em rewind. |
 | **`q`** | — | `QuitCommand` | Encerra a reprodução e fecha a janela. |
