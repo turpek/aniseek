@@ -7,6 +7,7 @@ from loguru import logger
 from numpy import ndarray
 
 from aniseek.core.interfaces.source import IFrameSource
+from aniseek.core.keyframes import extract_keyframe_indices
 
 
 class OpenCVVideoSource(IFrameSource):
@@ -28,6 +29,17 @@ class OpenCVVideoSource(IFrameSource):
         detected_fps = float(self.cap.get(cv2.CAP_PROP_FPS) or 0.0)
         self._fps = float(fps) if fps is not None and fps > 0.0 else detected_fps
         self.buffersize = max(1, buffersize)
+        self._keyframe_indices: list[int] | None = None
+
+    def get_keyframes(self) -> list[int] | None:
+        """Get or lazily extract keyframe indices for the underlying video file.
+
+        Returns:
+            list[int] | None: Sorted list of keyframe frame indices if available.
+        """
+        if self._keyframe_indices is None:
+            self._keyframe_indices = extract_keyframe_indices(self.path, self._fps)
+        return self._keyframe_indices
 
     @property
     def frame_count(self) -> int:
@@ -86,7 +98,20 @@ class OpenCVVideoSource(IFrameSource):
         if current_pos >= self._frame_count:
             return
 
-        # 1. Probe de tolerância para descartar frame corrompido pontual (Caso 3)
+        # 1. Reverse tail probe for common stream end / container off-by-one mismatch
+        if current_pos >= self._frame_count - probe_window:
+            for target in range(current_pos - 1, max(-1, current_pos - probe_window - 1), -1):
+                self.cap.set(cv2.CAP_PROP_POS_FRAMES, target)
+                if self.cap.grab():
+                    new_count = target + 1
+                    logger.info(
+                        f"Adjusted frame count from nominal {self._frame_count} "
+                        f"to actual decodable {new_count} via tail probe."
+                    )
+                    self._frame_count = new_count
+                    return
+
+        # 2. Forward probe to recover from isolated corrupted frame
         for offset in range(1, probe_window + 1):
             target = current_pos + offset
             if target >= self._frame_count:
@@ -100,39 +125,108 @@ class OpenCVVideoSource(IFrameSource):
                 self.cap.set(cv2.CAP_PROP_POS_FRAMES, current_pos + 1)
                 return
 
-        # 2. Probe falhou: stream encerrou prematuramente (Caso 2)
+        # 3. Probes failed: locate true end via keyframe candidates or galloping search
         self._find_true_frame_count()
 
     def _find_true_frame_count(self) -> int:
-        """Locate the exact last decodable frame using binary search and update frame_count."""
-        low = 0
-        high = self._frame_count - 1
-        ans = -1
+        """Locate the exact last decodable frame using keyframe candidates or galloping binary search."""
+        if self._frame_count <= 0:
+            return 0
 
-        # Verifica se o primeiro frame é decodificável
-        self.cap.set(cv2.CAP_PROP_POS_FRAMES, low)
-        if self.cap.grab():
-            ans = low
-            b_low = low + 1
-            b_high = high
-            while b_low <= b_high:
-                mid = (b_low + b_high) // 2
-                self.cap.set(cv2.CAP_PROP_POS_FRAMES, mid)
+        # Attempt candidate keyframe search first (1 seek in typical tail/overflow case)
+        kfs = self.get_keyframes()
+        if kfs:
+            candidates = [k for k in kfs if k < self._frame_count]
+            if candidates:
+                last_good = -1
+                # Check last keyframe candidate first (optimal guess for tail/overflow)
+                self.cap.set(cv2.CAP_PROP_POS_FRAMES, candidates[-1])
                 if self.cap.grab():
-                    ans = mid
-                    b_low = mid + 1
+                    last_good = candidates[-1]
                 else:
-                    b_high = mid - 1
+                    # Binary search on candidate indices
+                    low_idx = 0
+                    high_idx = len(candidates) - 2
+                    while low_idx <= high_idx:
+                        mid_idx = (low_idx + high_idx) // 2
+                        target = candidates[mid_idx]
+                        self.cap.set(cv2.CAP_PROP_POS_FRAMES, target)
+                        if self.cap.grab():
+                            last_good = target
+                            low_idx = mid_idx + 1
+                        else:
+                            high_idx = mid_idx - 1
 
-        new_count = ans + 1 if ans >= 0 else 0
+                if last_good >= 0:
+                    # Sequential finish from last_good to EOF (within 1 GOP)
+                    curr = last_good
+                    while self.cap.grab():
+                        curr += 1
+                    new_count = curr + 1
+                    if new_count != self._frame_count:
+                        logger.info(
+                            f"Adjusted frame count from nominal {self._frame_count} "
+                            f"to actual decodable {new_count} via keyframe candidates."
+                        )
+                        self._frame_count = new_count
+                    return self._frame_count
+
+        # Fallback: Galloping search backwards + binary search + sequential finish
+        new_count = self._galloping_find_true_frame_count()
         if new_count != self._frame_count:
             logger.info(
                 f"Adjusted frame count from nominal {self._frame_count} "
-                f"to actual decodable {new_count}."
+                f"to actual decodable {new_count} via galloping search."
             )
             self._frame_count = new_count
 
         return self._frame_count
+
+    def _galloping_find_true_frame_count(self, sequential_threshold: int = 64) -> int:
+        """Locate last decodable frame using reverse galloping and sequential finish."""
+        high = self._frame_count - 1
+        self.cap.set(cv2.CAP_PROP_POS_FRAMES, high)
+        if self.cap.grab():
+            return high + 1
+
+        # 1. Reverse exponential backoff
+        step = 16
+        b_low = None
+        b_high = high
+        while step < self._frame_count:
+            target = max(0, high - step)
+            self.cap.set(cv2.CAP_PROP_POS_FRAMES, target)
+            if self.cap.grab():
+                b_low = target
+                b_high = high - (step // 16) if step > 16 else high
+                break
+            step *= 16
+
+        if b_low is None:
+            self.cap.set(cv2.CAP_PROP_POS_FRAMES, 0)
+            if not self.cap.grab():
+                return 0
+            b_low = 0
+
+        # 2. Binary search on narrowed window
+        last_good = b_low
+        while (b_high - b_low) > sequential_threshold:
+            mid = (b_low + b_high) // 2
+            self.cap.set(cv2.CAP_PROP_POS_FRAMES, mid)
+            if self.cap.grab():
+                last_good = mid
+                b_low = mid + 1
+            else:
+                b_high = mid - 1
+
+        # 3. Sequential finish from last known good frame
+        self.cap.set(cv2.CAP_PROP_POS_FRAMES, last_good)
+        self.cap.grab()
+        curr = last_good
+        while self.cap.grab():
+            curr += 1
+
+        return curr + 1
 
     def validate_frame_count(self) -> int:
         """Validate and adjust frame_count on-demand via binary search.
