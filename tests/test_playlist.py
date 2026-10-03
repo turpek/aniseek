@@ -92,3 +92,13 @@ def test_prev_video_5x_com_lista_de_tamanho_6(play):
 
     result = play.video_name()
     assert expect == result
+
+
+def test_playlist_len_e_current_index(play):
+    """Valida o tamanho total da playlist e o avanco do current_index."""
+    assert len(play) == 6
+    assert play.current_index == 1
+    play.next_video()
+    assert play.current_index == 2
+    play.prev_video()
+    assert play.current_index == 1
