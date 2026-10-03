@@ -217,7 +217,10 @@ Todos os comandos de navegação possuem suporte nativo ao **`HoldTimer`**:
 | **`u`** | `Ctrl` / `Shift` | **Desfazer Seção** | Restaura a última seção removida ou dividida (**U**ndo). |
 | **`Home`** / **`End`** | — | **Início / Fim** | Salta para o primeiro ou último frame da seção atual. |
 | **`v`** | — | **Toggle Preview** | Alterna entre o modo de edição e o modo preview (*Rough Cut*). |
-| **`n`** / **`p`** | — | **Playlist** | Avança para o próximo vídeo ou volta ao anterior. |
+| **`n`** | — | **Próximo Vídeo** | Avança para o início do próximo vídeo da `Playlist` (sentido forward). |
+| **`n`** / **`N`** | `Ctrl` (pynput) / `Shift` ou `N` (OpenCV) | **Próximo Vídeo (Fim)** | Salta para o fim do próximo vídeo com pré-aquecimento de buffer e inicia em rewind. |
+| **`p`** | — | **Vídeo Anterior** | Retorna para o início do vídeo anterior da `Playlist` (sentido forward). |
+| **`p`** / **`P`** | `Ctrl` (pynput) / `Shift` ou `P` (OpenCV) | **Vídeo Anterior (Fim)** | Salta para o fim do vídeo anterior com pré-aquecimento de buffer e inicia em rewind. |
 | **`q`** | — | **Sair** | Encerra o visualizador de forma limpa. |
 
 ---
