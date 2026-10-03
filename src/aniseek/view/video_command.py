@@ -185,6 +185,55 @@ class NextVideoCommand(Command):
         self.timer.stop()
 
 
+class NextVideoEndCommand(Command):
+    def __init__(
+        self,
+        receiver: VideoController,
+        prefill_frames: int = 30,
+        delay: float = 0.15,
+        interval: float = 1.0 / 30,
+    ):
+        self.receiver = receiver
+        self.prefill_frames = prefill_frames
+        self.timer = HoldTimer(delay, interval)
+
+    def _execute(self) -> None:
+        playlist = self.receiver.playlist
+        if playlist and playlist.is_end():
+            return
+        self.receiver.next_video()
+        self.receiver.proceed()
+
+        sec_man = self.receiver.section_manager
+        if sec_man is None:
+            return
+
+        mapping = sec_man.current_section.mapping
+        if not mapping:
+            return
+
+        target_frame = mapping[-1]
+        start_frame = max(mapping[0], target_frame - self.prefill_frames)
+        self.receiver.set_frame(start_frame)
+
+        for _ in range(target_frame - start_frame):
+            self.receiver.read()
+
+        self.receiver.rewind()
+
+    def on_press(self) -> None:
+        self._execute()
+        self.timer.activate()
+
+    def on_hold(self) -> None:
+        if self.timer.collapsed():
+            self._execute()
+            self.timer.reactivate()
+
+    def on_release(self) -> None:
+        self.timer.stop()
+
+
 class PrevVideoCommand(Command):
     def __init__(self, receiver: VideoController, delay: float = 0.15, interval: float = 1.0 / 30):
         self.receiver = receiver
@@ -197,6 +246,55 @@ class PrevVideoCommand(Command):
     def on_hold(self) -> None:
         if self.timer.collapsed():
             self.receiver.prev_video()
+            self.timer.reactivate()
+
+    def on_release(self) -> None:
+        self.timer.stop()
+
+
+class PrevVideoEndCommand(Command):
+    def __init__(
+        self,
+        receiver: VideoController,
+        prefill_frames: int = 30,
+        delay: float = 0.15,
+        interval: float = 1.0 / 30,
+    ):
+        self.receiver = receiver
+        self.prefill_frames = prefill_frames
+        self.timer = HoldTimer(delay, interval)
+
+    def _execute(self) -> None:
+        playlist = self.receiver.playlist
+        if playlist and playlist.is_beginning():
+            return
+        self.receiver.prev_video()
+        self.receiver.proceed()
+
+        sec_man = self.receiver.section_manager
+        if sec_man is None:
+            return
+
+        mapping = sec_man.current_section.mapping
+        if not mapping:
+            return
+
+        target_frame = mapping[-1]
+        start_frame = max(mapping[0], target_frame - self.prefill_frames)
+        self.receiver.set_frame(start_frame)
+
+        for _ in range(target_frame - start_frame):
+            self.receiver.read()
+
+        self.receiver.rewind()
+
+    def on_press(self) -> None:
+        self._execute()
+        self.timer.activate()
+
+    def on_hold(self) -> None:
+        if self.timer.collapsed():
+            self._execute()
             self.timer.reactivate()
 
     def on_release(self) -> None:
