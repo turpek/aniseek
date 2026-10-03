@@ -206,6 +206,7 @@ class VideoController:
             self.__player.join()
             playlist.next_video()
             self.__open_video(self.video_manager, playlist.get_video_info())
+            self.proceed()
             logger.info(f'Next video: {playlist.video_name()}')
         else:
             logger.debug("Already at the end of the playlist")
@@ -216,6 +217,7 @@ class VideoController:
             self.__player.join()
             playlist.prev_video()
             self.__open_video(self.video_manager, playlist.get_video_info())
+            self.proceed()
             logger.info(f'Previous video: {playlist.video_name()}')
         else:
             logger.debug('Already at the beginning of the playlist')

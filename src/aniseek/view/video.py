@@ -27,10 +27,12 @@ from aniseek.view.video_command import (
     JumpSectionStartCommand,
     NextSectionCommand,
     NextVideoCommand,
+    NextVideoEndCommand,
     PauseCommand,
     PauseDelayCommand,
     PrevSectionCommand,
     PrevVideoCommand,
+    PrevVideoEndCommand,
     ProceesCommand,
     QuitCommand,
     RemoveFrameCommand,
@@ -264,7 +266,9 @@ class FrameViewer:
         command.set_command('RemoveFrameCommand', RemoveFrameCommand(video_controller, delay=delay, interval=interval))
         command.set_command('UndoFrameCommand', UndoFrameCommand(video_controller, delay=delay, interval=interval))
         command.set_command('NextVideoCommand', NextVideoCommand(video_controller, delay=delay, interval=interval))
+        command.set_command('NextVideoEndCommand', NextVideoEndCommand(video_controller, delay=delay, interval=interval))
         command.set_command('PrevVideoCommand', PrevVideoCommand(video_controller, delay=delay, interval=interval))
+        command.set_command('PrevVideoEndCommand', PrevVideoEndCommand(video_controller, delay=delay, interval=interval))
         command.set_command('NextSectionCommand', NextSectionCommand(video_controller, delay=delay, interval=interval))
         command.set_command('PrevSectionCommand', PrevSectionCommand(video_controller, delay=delay, interval=interval))
         command.set_command('SplitSectionCommand', SplitSectionCommand(video_controller, delay=delay, interval=interval))
