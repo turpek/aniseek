@@ -425,6 +425,10 @@ class VideoController:
     def playlist(self) -> Playlist | None:
         return self.__playlist
 
+    @property
+    def trash(self):
+        return self.__trash
+
 
 class FakeVideoController(VideoController):
     def __init__(self,

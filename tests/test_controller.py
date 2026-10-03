@@ -1372,6 +1372,12 @@ def test_video_controller_section_manager_property(controller_section):
     assert ctrl.section_manager.current_index == 0
 
 
+def test_video_controller_trash_property(controller_section):
+    """Verifica que a classe base VideoController expõe a propriedade pública trash."""
+    ctrl = controller_section
+    assert ctrl.trash is not None
+
+
 @pytest.mark.parametrize('video', [(list(range(20)), 25, 20, False)], indirect=True)
 def test_video_controller_troca_de_direcao_pausado_com_delay(video):
     """Verifica que ao mudar de direção no modo pausado o próximo frame é lido no primeiro comando."""
