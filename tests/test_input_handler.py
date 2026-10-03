@@ -200,8 +200,14 @@ def test_shortcuts_mapping():
     assert PYNPUT_SHORTCUTS[ord("W")] == "SaveCommand"
     assert CV2_SHORTCUTS[InputHandler.KEY_RIGHT] == "DynamicProceedCommand"
     assert CV2_SHORTCUTS[InputHandler.KEY_LEFT] == "DynamicRewindCommand"
+    assert CV2_SHORTCUTS[InputHandler.SHIFT_BIT | ord("n")] == "NextVideoEndCommand"
+    assert CV2_SHORTCUTS[ord("N")] == "NextVideoEndCommand"
+    assert CV2_SHORTCUTS[InputHandler.SHIFT_BIT | ord("p")] == "PrevVideoEndCommand"
+    assert CV2_SHORTCUTS[ord("P")] == "PrevVideoEndCommand"
     assert PYNPUT_SHORTCUTS[InputHandler.KEY_RIGHT] == "DynamicProceedCommand"
     assert PYNPUT_SHORTCUTS[InputHandler.KEY_LEFT] == "DynamicRewindCommand"
+    assert PYNPUT_SHORTCUTS[InputHandler.CTRL_BIT | ord("n")] == "NextVideoEndCommand"
+    assert PYNPUT_SHORTCUTS[InputHandler.CTRL_BIT | ord("p")] == "PrevVideoEndCommand"
 
 
 @pytest.mark.parametrize(
