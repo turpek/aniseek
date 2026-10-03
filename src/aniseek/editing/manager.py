@@ -110,7 +110,7 @@ class VideoManager:
         args = (self.source, self.mapping, self.semaphore)
         bsize, log = self.__buffersize, self.__log
         right = VideoBufferRight(*args, buffersize=bsize, bufferlog=log)
-        left = VideoBufferLeft(*args, buffersize=bsize, bufferlog=log)
+        left = VideoBufferLeft(*args, buffersize=3 * bsize, bufferlog=log)
 
         if self.player is not None and self.player.is_rewind:
             self.servant, self.master = left, right
@@ -141,10 +141,6 @@ class VideoManager:
         self.load_mapping(section_manager.get_mapping())
         self.load_trash(section_manager)
         self.load_buffers()
-
-        # Iniciando a task e esperando que a mesma esteja concluida.
-        self.servant.run()
-        self.servant._buffer.wait_task()
         return section_manager
 
     def open(
@@ -160,10 +156,6 @@ class VideoManager:
         self.load_mapping(section_manager.get_mapping())
         self.load_trash(section_manager)
         self.load_buffers()
-
-        # Iniciando a task e esperando que a mesma esteja concluida.
-        self.servant.run()
-        self.servant._buffer.wait_task()
         return section_manager
 
     def load_video_info(self, video_info: VideoInfo):
