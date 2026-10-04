@@ -1,3 +1,4 @@
+import json
 from collections import deque
 from threading import Semaphore
 from unittest.mock import patch
@@ -8,6 +9,7 @@ from pytest import fixture
 
 from aniseek.custom_exceptions import SectionManagerError
 from aniseek.editing.section import SectionManager, VideoSection
+from aniseek.editing.section_service import SectionService
 from aniseek.editing.trash import Trash
 from tests.uteis import MyVideoCapture as BaseMyVideoCapture
 
@@ -1764,3 +1766,35 @@ def test_section_manager_clamp_to_frame_count():
     assert changed is True
     assert len(manager.sections) == 2
     assert manager.sections[1].end == 80
+
+
+def test_section_service_sync_file_frame_count(tmp_path):
+    """Verifica que sync_file_frame_count trunca o RANGE_FRAME_ID e metadados no arquivo JSON."""
+    json_path = tmp_path / "test_section.json"
+    data = {
+        "video_01": {
+            "SECTIONS": [
+                {"RANGE_FRAME_ID": [0, 50], "REMOVED_FRAMES": [], "BLACK_LIST": []},
+                {"RANGE_FRAME_ID": [50, 100], "REMOVED_FRAMES": [], "BLACK_LIST": []},
+            ],
+            "REMOVED": [],
+        },
+        "metadata": {
+            "frame_count": 100,
+            "end_frame": 100,
+            "total_video_frames": 100,
+        },
+    }
+    with open(json_path, "w", encoding="utf-8") as f:
+        json.dump(data, f)
+
+    modified = SectionService.sync_file_frame_count(json_path, 80, "video_01")
+    assert modified is True
+
+    with open(json_path, "r", encoding="utf-8") as f:
+        updated = json.load(f)
+
+    assert updated["video_01"]["SECTIONS"][1]["RANGE_FRAME_ID"] == [50, 80]
+    assert updated["metadata"]["frame_count"] == 80
+    assert updated["metadata"]["end_frame"] == 80
+    assert updated["metadata"]["total_video_frames"] == 80
