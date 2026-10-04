@@ -6,6 +6,11 @@ from pytest import fixture
 
 from aniseek.core.sources.opencv import OpenCVVideoSource
 from aniseek.editing.section import SectionManager, VideoSection
+from aniseek.view import (
+    ViewerTitleContext,
+    default_title_formatter,
+    truncate_middle,
+)
 from aniseek.view.interfaces.command import ButtonState, Command
 from aniseek.view.shortcuts import IP
 from aniseek.view.video import FrameViewer
@@ -321,3 +326,69 @@ def test_frame_viewer_directional_left_triggers_dynamic_rewind(mycap, creating_w
         viewer.control(IP.KEY_LEFT, ButtonState.PRESS)
         mock_rewind.assert_called_once()
     viewer.join()
+
+
+def test_truncate_middle_with_short_and_long_strings():
+    """Verifica que truncate_middle preserva strings curtas e resume strings longas no meio."""
+    short = "video_01"
+    assert truncate_middle(short, 10, 10) == "video_01"
+    long_str = "1_vertical_394_kimi_no_koto_ga_dai_dai_dai_dai_daisuki_na_100-nin_no_kanojo_08_1439_1"
+    expected = "1_vertical..._08_1439_1"
+    assert truncate_middle(long_str, 10, 10) == expected
+
+
+def test_default_title_formatter_normal_mode():
+    """Verifica formatação padrão de título no modo normal com contagem relativa e id global."""
+    ctx = ViewerTitleContext(
+        frame_id=21055,
+        relative_frame=5,
+        section_frames=34,
+        section_index=1,
+        total_sections=6,
+        is_preview=False,
+        is_rewind=False,
+        is_paused=False,
+        playlist_index=1,
+        playlist_total=15,
+        label="1_vertical_394_kimi_no_koto_ga_dai_dai_dai_dai_daisuki_na_100-nin_no_kanojo_08_1439_1",
+    )
+    title = default_title_formatter(ctx)
+    assert title == "videoseq - [1/15] [1_vertical..._08_1439_1] [Seção 1/6 | Frame 5/34 (#21055)] [>>]"
+
+
+def test_default_title_formatter_preview_and_paused():
+    """Verifica formatação padrão no modo preview com reprodução pausada e direção rewind."""
+    ctx = ViewerTitleContext(
+        frame_id=100,
+        relative_frame=1,
+        section_frames=50,
+        section_index=1,
+        total_sections=1,
+        is_preview=True,
+        is_rewind=True,
+        is_paused=True,
+        playlist_index=None,
+        playlist_total=None,
+        label=None,
+    )
+    title = default_title_formatter(ctx)
+    assert title == "videoseq - [PREVIEW | Frame: 100] [<<] (PAUSADO)"
+
+
+def test_frame_viewer_custom_title_formatter(mycap, creating_window):
+    """Verifica que FrameViewer delega a formatação do título da janela ao formatador customizado."""
+    source = OpenCVVideoSource('test_video.mp4')
+    received_contexts = []
+
+    def custom_formatter(ctx: ViewerTitleContext) -> str:
+        received_contexts.append(ctx)
+        return f"custom - {ctx.frame_id}"
+
+    with patch('aniseek.view.video.cv2.setWindowTitle') as mock_set_title:
+        viewer = FrameViewer(source, title_formatter=custom_formatter)
+        viewer.read()
+        viewer._update_title()
+        mock_set_title.assert_called_with('videoseq', 'custom - 0')
+        assert len(received_contexts) >= 1
+        assert received_contexts[-1].frame_id == 0
+        viewer.join()

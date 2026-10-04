@@ -6,7 +6,13 @@ from aniseek.view.shortcuts import (
     PYNPUT_SHORTCUTS,
     SHORTCUTS,
 )
-from aniseek.view.video import FrameViewer
+from aniseek.view.video import (
+    FrameViewer,
+    TitleFormatter,
+    ViewerTitleContext,
+    default_title_formatter,
+    truncate_middle,
+)
 from aniseek.view.video_command import (
     Command,
     DecreaseSpeedCommand,
@@ -72,8 +78,12 @@ __all__ = [
     "SHORTCUTS",
     "SaveCommand",
     "SplitSectionCommand",
+    "TitleFormatter",
     "TogglePreviewCommand",
     "UndoFrameCommand",
     "UndoSectionCommand",
     "VideoController",
+    "ViewerTitleContext",
+    "default_title_formatter",
+    "truncate_middle",
 ]
