@@ -1734,3 +1734,33 @@ def test_SectionManager_restore_section_tudo_nao_linear_a_partir_da_ultima_secao
     result_id = section.id
     assert expect == result
     assert expect_id == result_id
+
+
+def test_video_section_clamp_end_when_exceeding():
+    """Verifica que clamp_end reduz o fim da seção e atualiza o mapeamento quando excede o limite."""
+    sec = VideoSection(0, 100)
+    changed = sec.clamp_end(80)
+    assert changed is True
+    assert sec.end == 80
+    assert len(sec.mapping) == 80
+
+
+def test_video_section_clamp_end_when_within_bounds():
+    """Garante que clamp_end não altera a seção se o fim já estiver dentro do limite."""
+    sec = VideoSection(0, 50)
+    changed = sec.clamp_end(80)
+    assert changed is False
+    assert sec.end == 50
+    assert len(sec.mapping) == 50
+
+
+def test_section_manager_clamp_to_frame_count():
+    """Verifica que clamp_to_frame_count trunca a última seção e descarta seções fora do limite."""
+    sec1 = VideoSection(0, 50)
+    sec2 = VideoSection(50, 100)
+    sec3 = VideoSection(100, 150)
+    manager = SectionManager([sec1, sec2, sec3])
+    changed = manager.clamp_to_frame_count(80)
+    assert changed is True
+    assert len(manager.sections) == 2
+    assert manager.sections[1].end == 80
