@@ -168,12 +168,15 @@ class UndoFrameCommand(Command):
 
 
 class NextVideoCommand(Command):
-    def __init__(self, receiver: VideoController, delay: float = 0.15, interval: float = 1.0 / 30):
+    def __init__(self, receiver: VideoController, delay: float = 0.15, interval: float = 0.08):
         self.receiver = receiver
         self.timer = HoldTimer(delay, interval)
+        self._paused_by_cmd = False
 
     def on_press(self) -> None:
         self.receiver.next_video()
+        self.receiver.set_pause()
+        self._paused_by_cmd = True
         self.timer.activate()
 
     def on_hold(self) -> None:
@@ -183,6 +186,9 @@ class NextVideoCommand(Command):
 
     def on_release(self) -> None:
         self.timer.stop()
+        if self._paused_by_cmd:
+            self._paused_by_cmd = False
+            self.receiver.set_pause()
 
 
 class NextVideoEndCommand(Command):
@@ -235,12 +241,15 @@ class NextVideoEndCommand(Command):
 
 
 class PrevVideoCommand(Command):
-    def __init__(self, receiver: VideoController, delay: float = 0.15, interval: float = 1.0 / 30):
+    def __init__(self, receiver: VideoController, delay: float = 0.15, interval: float = 0.08):
         self.receiver = receiver
         self.timer = HoldTimer(delay, interval)
+        self._paused_by_cmd = False
 
     def on_press(self) -> None:
         self.receiver.prev_video()
+        self.receiver.set_pause()
+        self._paused_by_cmd = True
         self.timer.activate()
 
     def on_hold(self) -> None:
@@ -250,6 +259,9 @@ class PrevVideoCommand(Command):
 
     def on_release(self) -> None:
         self.timer.stop()
+        if self._paused_by_cmd:
+            self._paused_by_cmd = False
+            self.receiver.set_pause()
 
 
 class PrevVideoEndCommand(Command):

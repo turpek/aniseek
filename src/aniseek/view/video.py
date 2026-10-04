@@ -1,5 +1,8 @@
 from __future__ import annotations
 
+from bisect import bisect_left
+from collections.abc import Callable
+from dataclasses import dataclass
 from pathlib import Path
 from time import sleep
 
@@ -48,6 +51,53 @@ from aniseek.view.video_command import (
 from aniseek.view.video_controller import VideoController
 
 
+@dataclass(frozen=True)
+class ViewerTitleContext:
+    frame_id: int | None
+    relative_frame: int
+    section_frames: int
+    section_index: int
+    total_sections: int
+    is_preview: bool
+    is_rewind: bool
+    is_paused: bool
+    playlist_index: int | None
+    playlist_total: int | None
+    label: str | None
+
+
+TitleFormatter = Callable[[ViewerTitleContext], str]
+
+
+def truncate_middle(text: str, head: int = 10, tail: int = 10) -> str:
+    """Encurta textos longos preservando o início e o fim separados por reticências."""
+    if len(text) <= head + tail + 3:
+        return text
+    return f"{text[:head]}...{text[-tail:]}"
+
+
+def default_title_formatter(ctx: ViewerTitleContext) -> str:
+    """Formatador padrão exibindo contagem relativa e identificador global."""
+    direction_str = '<<' if ctx.is_rewind else '>>'
+    paused_str = ' (PAUSADO)' if ctx.is_paused else ''
+
+    prefix = ''
+    if ctx.playlist_index is not None and ctx.playlist_total is not None:
+        label_str = f'[{truncate_middle(ctx.label)}] ' if ctx.label else ''
+        prefix = f'[{ctx.playlist_index}/{ctx.playlist_total}] {label_str}'
+
+    if ctx.is_preview:
+        fid_str = str(ctx.frame_id) if ctx.frame_id is not None else '-'
+        return f'videoseq - {prefix}[PREVIEW | Frame: {fid_str}] [{direction_str}]{paused_str}'
+
+    fid_str = f' (#{ctx.frame_id})' if ctx.frame_id is not None else ''
+    return (
+        f'videoseq - {prefix}[Seção {ctx.section_index}/{ctx.total_sections} | '
+        f'Frame {ctx.relative_frame}/{ctx.section_frames}{fid_str}] '
+        f'[{direction_str}]{paused_str}'
+    )
+
+
 class FrameViewer:
     def __init__(
             self,
@@ -56,7 +106,8 @@ class FrameViewer:
             shortcuts: dict[int, str] | None = None,
             buffersize: int = 60,
             key_reader: type[InputHandler] = PynputKeyReader,
-            log: bool = False
+            log: bool = False,
+            title_formatter: TitleFormatter | None = None,
     ):
         if not isinstance(source, IFrameSource):
             raise TypeError(
@@ -76,6 +127,7 @@ class FrameViewer:
             self.__shortcuts.update(shortcuts)
 
         self.__last_title: str | None = None
+        self.__title_formatter: TitleFormatter = title_formatter or default_title_formatter
         self.__video_manager = VideoManager(buffersize, log)
         self.__video_controller = VideoController.from_source(
             source=source,
@@ -96,6 +148,7 @@ class FrameViewer:
         buffersize: int = 60,
         key_reader: type[InputHandler] = PynputKeyReader,
         log: bool = False,
+        title_formatter: TitleFormatter | None = None,
     ) -> FrameViewer:
         if isinstance(path, IFrameSource):
             raise TypeError(
@@ -110,6 +163,7 @@ class FrameViewer:
             buffersize=buffersize,
             key_reader=key_reader,
             log=log,
+            title_formatter=title_formatter,
         )
 
     @classmethod
@@ -122,6 +176,7 @@ class FrameViewer:
         buffersize: int = 60,
         key_reader: type[InputHandler] = PynputKeyReader,
         log: bool = False,
+        title_formatter: TitleFormatter | None = None,
     ) -> FrameViewer:
         if not isinstance(playlist, Playlist):
             raise TypeError(
@@ -140,6 +195,7 @@ class FrameViewer:
             viewer.__shortcuts.update(shortcuts)
 
         viewer.__last_title = None
+        viewer.__title_formatter = title_formatter or default_title_formatter
         viewer.__video_manager = VideoManager(buffersize, log)
         viewer.__video_controller = VideoController(
             playlist=playlist,
@@ -212,28 +268,72 @@ class FrameViewer:
     def _show(self, frame):
         cv2.imshow('videoseq', frame)
 
+    def set_title_formatter(self, formatter: TitleFormatter) -> None:
+        """Define uma função customizada para formatação do título da janela."""
+        self.__title_formatter = formatter
+        self.__last_title = None
+        self._update_title()
+
+    @property
+    def title_formatter(self) -> TitleFormatter:
+        return self.__title_formatter
+
     def _update_title(self) -> None:
         try:
-            frame_id = self.frame_id if self.frame_id is not None else '-'
-            direction_str = '<<' if self.__video_manager.player.is_rewind else '>>'
-            paused_str = ' (PAUSADO)' if self.__video_manager.player.delay == 0 else ''
+            frame_id = self.frame_id
+            is_rewind = self.__video_manager.player.is_rewind
+            is_paused = self.__video_manager.player.delay == 0
+            is_preview = self.__video_controller.is_preview
 
-            vname_prefix = ''
+            pl_idx: int | None = None
+            pl_total: int | None = None
+            label: str | None = None
+
             if self.__video_controller.playlist is not None:
                 playlist = self.__video_controller.playlist
                 vinfo = playlist.get_video_info()
                 if vinfo is not None:
-                    count_str = f'[{playlist.current_index}/{len(playlist)}] ' if len(playlist) > 0 else ''
-                    vname_prefix = f'{count_str}[{vinfo.label}] '
+                    pl_idx = playlist.current_index
+                    pl_total = len(playlist)
+                    label = vinfo.label
 
-            if self.__video_controller.is_preview:
-                title = f'videoseq - {vname_prefix}[PREVIEW | Frame: {frame_id}] [{direction_str}]{paused_str}'
-            else:
-                sec_man = self.__video_controller.section_manager
+            sec_man = self.__video_controller.section_manager
+            if sec_man is not None and len(sec_man.sections) > 0:
                 sec_idx = sec_man.current_index + 1
                 sec_total = len(sec_man.sections)
                 sec = sec_man.current_section
-                title = f'videoseq - {vname_prefix}[Seção {sec_idx}/{sec_total} | Frames {sec.start}-{sec.end - 1} | Frame: {frame_id}] [{direction_str}]{paused_str}'
+                mapping = sec.mapping
+                sec_frames = len(mapping)
+
+                if frame_id is not None and sec_frames > 0:
+                    pos = bisect_left(mapping, frame_id)
+                    if pos < sec_frames and mapping[pos] == frame_id:
+                        rel_frame = pos + 1
+                    else:
+                        rel_frame = min(pos + 1, sec_frames)
+                else:
+                    rel_frame = 1 if sec_frames > 0 else 0
+            else:
+                sec_idx = 0
+                sec_total = 0
+                sec_frames = 0
+                rel_frame = 0
+
+            ctx = ViewerTitleContext(
+                frame_id=frame_id,
+                relative_frame=rel_frame,
+                section_frames=sec_frames,
+                section_index=sec_idx,
+                total_sections=sec_total,
+                is_preview=is_preview,
+                is_rewind=is_rewind,
+                is_paused=is_paused,
+                playlist_index=pl_idx,
+                playlist_total=pl_total,
+                label=label,
+            )
+
+            title = self.__title_formatter(ctx)
             if title != self.__last_title:
                 cv2.setWindowTitle('videoseq', title)
                 self.__last_title = title
