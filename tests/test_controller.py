@@ -1399,3 +1399,60 @@ def test_video_controller_troca_de_direcao_pausado_com_delay(video):
     ret2, _ = video.read()
     assert ret2 is True
     assert video.frame_id == 4
+
+
+def test_video_controller_preserva_section_manager_ao_navegar_playlist(mycap):
+    """Verifica que cada vídeo da playlist preserva a mesma instância de SectionManager na RAM."""
+    with patch('aniseek.core.sources.opencv.cv2.VideoCapture', side_effect=lambda *a, **kw: MyVideoCapture(True, 100)):
+        manager = VideoManager(25, False)
+        playlist = Playlist(['v1.mp4', 'v2.mp4'], labels=['v1', 'v2'])
+        ctrl = VideoController(playlist, None, manager)
+        sec1 = ctrl.section_manager
+        ctrl.next_video()
+        sec2 = ctrl.section_manager
+        assert sec2 is not sec1
+        ctrl.prev_video()
+        assert ctrl.section_manager is sec1
+        ctrl.next_video()
+        assert ctrl.section_manager is sec2
+        ctrl.join()
+
+
+def test_video_controller_preserva_remocao_de_secao_apos_navegacao_playlist(mycap):
+    """Verifica que uma seção removida permanece removida após navegar para outro vídeo e voltar."""
+    sections_data = {
+        'v1': {
+            'SECTIONS': [
+                {'RANGE_FRAME_ID': [0, 50], 'REMOVED_FRAMES': [], 'BLACK_LIST': []},
+                {'RANGE_FRAME_ID': [50, 100], 'REMOVED_FRAMES': [], 'BLACK_LIST': []},
+            ],
+            'REMOVED': [],
+        },
+        'v2': {
+            'SECTIONS': [
+                {'RANGE_FRAME_ID': [0, 100], 'REMOVED_FRAMES': [], 'BLACK_LIST': []},
+            ],
+            'REMOVED': [],
+        },
+    }
+    with patch('aniseek.core.sources.opencv.cv2.VideoCapture', side_effect=lambda *a, **kw: MyVideoCapture(True, 100)):
+        manager = VideoManager(25, False)
+        playlist = Playlist(['v1.mp4', 'v2.mp4'], labels=['v1', 'v2'])
+        ctrl = VideoController(playlist, None, manager, sections=sections_data)
+        assert len(ctrl.section_manager.sections) == 2
+        ctrl.remove_section()
+        assert len(ctrl.section_manager.sections) == 1
+        ctrl.next_video()
+        assert len(ctrl.section_manager.sections) == 1
+        ctrl.prev_video()
+        assert len(ctrl.section_manager.sections) == 1
+        ctrl.join()
+
+
+def test_video_controller_from_source_registra_label_no_cache():
+    """Verifica que from_source registra o SectionManager sob o label fornecido no cache de RAM."""
+    source = MyVideoCapture(True, 100)
+    ctrl = VideoController.from_source(source, label='custom_label')
+    assert 'custom_label' in ctrl.section_managers
+    assert ctrl.section_manager is ctrl.section_managers['custom_label']
+    ctrl.join()

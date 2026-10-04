@@ -37,6 +37,7 @@ class VideoController:
         self.__is_preview = False
         self.__last_frame_id: int | None = None
         self.__injected_sections = sections
+        self.__section_managers: dict[str, SectionManager] = {}
 
         if video_manager is None:
             video_manager = VideoManager(config.buffersize, False)
@@ -54,6 +55,7 @@ class VideoController:
         video_manager: VideoManager | None = None,
         *,
         sections: SectionManager | dict | Path | str | None = None,
+        label: str = 'video_01',
     ) -> VideoController:
         if not isinstance(source, IFrameSource):
             raise TypeError(
@@ -71,19 +73,30 @@ class VideoController:
         ctrl.__is_preview = False
         ctrl.__last_frame_id = None
         ctrl.__injected_sections = sections
+        ctrl.__section_managers = {}
         ctrl.video_manager = video_manager
 
-        section_manager = video_manager.open_source(source, sections=sections)
+        section_manager = video_manager.open_source(source, sections=sections, label=label)
         player, mapper, trash = video_manager.get()
         ctrl.__player = player
         ctrl.__mapper = mapper
         ctrl.__trash = trash
         ctrl.__section_manager = section_manager
+        ctrl.__section_managers[label] = section_manager
+
         return ctrl
 
     @property
     def is_preview(self) -> bool:
         return self.__is_preview
+
+    @property
+    def section_managers(self) -> dict[str, SectionManager]:
+        return self.__section_managers
+
+    @property
+    def injected_sections(self):
+        return self.__injected_sections
 
     def __open_video(
         self,
@@ -92,10 +105,23 @@ class VideoController:
         sections: SectionManager | dict | Path | str | None = None,
     ) -> None:
         """Método para abrir o vídeo e configurar a seção."""
-        target_sections = sections if sections is not None else self.__injected_sections
+        label = vinfo.label
+        if label in self.__section_managers:
+            target_sections = self.__section_managers[label]
+        elif sections is not None:
+            if isinstance(sections, dict) and label in sections:
+                target_sections = sections[label]
+            else:
+                target_sections = sections
+        elif isinstance(self.__injected_sections, dict) and label in self.__injected_sections:
+            target_sections = self.__injected_sections[label]
+        else:
+            target_sections = self.__injected_sections
+
         section_manager = video_manager.open(
             vinfo.path, vinfo.label, vinfo.format_file, sections=target_sections
         )
+        self.__section_managers[label] = section_manager
         video_manager.load_video_info(vinfo)
         player, mapper, trash = video_manager.get()
         self.__player = player
@@ -129,6 +155,7 @@ class VideoController:
         self.video_manager.save_section(self.__section_manager, target_path, label)
         if isinstance(self.__injected_sections, dict):
             self.__injected_sections[label] = self.__section_manager.to_dict(self.__trash)
+        self.__section_managers[label] = self.__section_manager
         logger.info(f"Sections successfully saved to {target_path} [{label}]")
 
     def __save_section_manager(self):
@@ -296,6 +323,9 @@ class VideoController:
             target_frame = mapping[-1]
             if self.__mapper and len(self.__mapper) > 0:
                 target_frame = min(target_frame, self.__mapper[-1])
+            fc = self.video_manager.frame_count
+            if fc > 0:
+                target_frame = min(target_frame, fc - 1)
             self.set_frame(target_frame)
             self.__player.set_read()
 
@@ -400,6 +430,9 @@ class VideoController:
         return self.__player.quit()
 
     def set_frame(self, frame_id: int):
+        fc = self.video_manager.frame_count
+        if fc > 0 and frame_id >= fc:
+            frame_id = max(0, fc - 1)
         self.__player.disable_collect()
         if self.__player.is_rewind:
             self.__player.servant.set(frame_id + 1)
@@ -433,9 +466,11 @@ class VideoController:
 class FakeVideoController(VideoController):
     def __init__(self,
                  playlist: Playlist,
-                 frames_mapping: list[int],
-                 video_manager: VideoManager):
-        super().__init__(playlist, frames_mapping, video_manager)
+                 frames_mapping: list[int] | None = None,
+                 video_manager: VideoManager | None = None,
+                 *,
+                 sections: SectionManager | dict | Path | str | None = None):
+        super().__init__(playlist, frames_mapping, video_manager, sections=sections)
 
     @property
     def player(self):
@@ -452,3 +487,11 @@ class FakeVideoController(VideoController):
     @property
     def section_manager(self):
         return self._VideoController__section_manager
+
+    @property
+    def section_managers(self) -> dict[str, SectionManager]:
+        return self._VideoController__section_managers
+
+    @property
+    def injected_sections(self):
+        return self._VideoController__injected_sections
