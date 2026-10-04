@@ -132,6 +132,21 @@ class VideoSection:
         self._start = frame_map[0]
         self._end = frame_map[-1]
 
+    def clamp_end(self, max_frames: int) -> bool:
+        """Clamps the section's end to max_frames if it exceeds it.
+
+        Args:
+            max_frames (int): Maximum allowable end frame ID (exclusive).
+
+        Returns:
+            bool: True if section end was modified, False otherwise.
+        """
+        if self._end > max_frames:
+            self._end = max(self._start, max_frames)
+            self._mapping = self._calculate_mapping()
+            return True
+        return False
+
     def get_trash(self) -> deque[int]:
         return self._removed_frames
 
@@ -237,6 +252,38 @@ class SectionManager:
         if not self._sections:
             return []
         return self.current_section.get_mapping()
+
+    def clamp_to_frame_count(self, frame_count: int) -> bool:
+        """Clamps all sections to the given frame_count.
+
+        Args:
+            frame_count (int): Maximum allowable total frame count.
+
+        Returns:
+            bool: True if any section was modified or removed, False otherwise.
+        """
+        if frame_count <= 0:
+            return False
+        changed = False
+        valid_sections = []
+        for sec in self._sections:
+            if sec.start >= frame_count:
+                changed = True
+                continue
+            if sec.clamp_end(frame_count):
+                changed = True
+            if len(sec.mapping) > 0 or sec.start < sec.end:
+                valid_sections.append(sec)
+
+        if not valid_sections and frame_count > 0:
+            valid_sections.append(VideoSection(0, frame_count))
+            changed = True
+
+        if changed:
+            self._sections = valid_sections
+            if self._current_index >= len(self._sections):
+                self._current_index = max(0, len(self._sections) - 1)
+        return changed
 
     def get_preview_mapping(self) -> list[int]:
         """Retorna o mapping contínuo unindo todas as seções ativas (Rough Cut Preview)."""
