@@ -47,10 +47,18 @@ class VideoManager:
         else:
             return FrameMapper(frame_ids, frame_count)
 
+    def _on_source_frame_count_changed(self, old_count: int, new_count: int) -> None:
+        self.frame_count = new_count
+        if self.__section_manager is not None:
+            self.__section_manager.clamp_to_frame_count(new_count)
+            if isinstance(self.mapping, FrameMapper):
+                self.mapping.set_mapping(self.__section_manager.get_mapping(), new_count, [])
+
     def load_capture(self, file_path: str | Path) -> None:
         self.path = Path(file_path)
         self.source = source_registry.create_source(self.path)
         self.frame_count = self.source.frame_count
+        self.source._callback = self._on_source_frame_count_changed
 
     def load_source(self, source: IFrameSource) -> None:
         if not isinstance(source, IFrameSource):
@@ -60,6 +68,7 @@ class VideoManager:
         self.source = source
         self.path = None
         self.frame_count = source.frame_count
+        self.source._callback = self._on_source_frame_count_changed
 
     def resolve_section_manager(
         self,
@@ -165,6 +174,8 @@ class VideoManager:
                      section_manager: SectionManager,
                      file_path: Path,
                      label: str) -> None:
+        if self.frame_count and self.frame_count > 0:
+            section_manager.clamp_to_frame_count(self.frame_count)
         data_section = section_manager.to_dict(self.trash)
         SectionService.save_section_manager(file_path, label, data_section)
 

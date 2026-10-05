@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from collections.abc import Callable
 from pathlib import Path
 
 import cv2
@@ -30,6 +31,10 @@ class OpenCVVideoSource(IFrameSource):
         self._fps = float(fps) if fps is not None and fps > 0.0 else detected_fps
         self.buffersize = max(1, buffersize)
         self._keyframe_indices: list[int] | None = None
+        self._callback: Callable[[int, int], None] = lambda old, new: None
+
+    def on_frame_count_changed(self, old_count: int, new_count: int) -> None:
+        self._callback(old_count, new_count)
 
     def get_keyframes(self) -> list[int] | None:
         """Get or lazily extract keyframe indices for the underlying video file.
@@ -108,7 +113,9 @@ class OpenCVVideoSource(IFrameSource):
                         f"Adjusted frame count from nominal {self._frame_count} "
                         f"to actual decodable {new_count} via tail probe."
                     )
+                    old_count = self._frame_count
                     self._frame_count = new_count
+                    self.on_frame_count_changed(old_count, new_count)
                     return
 
         # 2. Forward probe to recover from isolated corrupted frame
@@ -168,7 +175,9 @@ class OpenCVVideoSource(IFrameSource):
                             f"Adjusted frame count from nominal {self._frame_count} "
                             f"to actual decodable {new_count} via keyframe candidates."
                         )
+                        old_count = self._frame_count
                         self._frame_count = new_count
+                        self.on_frame_count_changed(old_count, new_count)
                     return self._frame_count
 
         # Fallback: Galloping search backwards + binary search + sequential finish
@@ -178,7 +187,9 @@ class OpenCVVideoSource(IFrameSource):
                 f"Adjusted frame count from nominal {self._frame_count} "
                 f"to actual decodable {new_count} via galloping search."
             )
+            old_count = self._frame_count
             self._frame_count = new_count
+            self.on_frame_count_changed(old_count, new_count)
 
         return self._frame_count
 

@@ -3,6 +3,8 @@ from __future__ import annotations
 import pytest
 
 from aniseek.core.sources.opencv import OpenCVVideoSource
+from aniseek.editing.manager import VideoManager
+from aniseek.editing.section import SectionManager, VideoSection
 from tests.uteis import MyVideoCapture
 
 
@@ -224,3 +226,73 @@ def test_opencv_source_tail_probe_adjusts_frame_count_immediately(tmp_path, monk
     assert ret is False
     assert frame is None
     assert source.frame_count == 99
+
+
+def test_opencv_source_calls_on_frame_count_changed(tmp_path, monkeypatch):
+    """Verifica que on_frame_count_changed e chamado quando o final real e detectado."""
+    dummy_file = tmp_path / "video.mp4"
+    dummy_file.touch()
+
+    class OffByTwoVideoCapture(MyVideoCapture):
+        def read(self, image=None):
+            if self.index >= 98:
+                return False, None
+            return super().read(image)
+
+        def grab(self) -> bool:
+            if self.index >= 98:
+                return False
+            return super().grab()
+
+    mock_cap = OffByTwoVideoCapture(isopened=True, frame_count=100)
+    monkeypatch.setattr("cv2.VideoCapture", lambda _: mock_cap)
+
+    source = OpenCVVideoSource(dummy_file)
+    recorded_changes = []
+    source._callback = lambda old, new: recorded_changes.append((old, new))
+
+    source.seek(99)
+    source.read()
+
+    assert source.frame_count == 98
+    assert recorded_changes == [(100, 98)]
+
+
+def test_video_manager_updates_section_and_mapping_when_frame_count_changes(tmp_path, monkeypatch):
+    """Verifica que o VideoManager atualiza SectionManager e FrameMapper apos ajuste de frame count."""
+    dummy_file = tmp_path / "video.mp4"
+    dummy_file.touch()
+
+    class TruncatedCap(MyVideoCapture):
+        def read(self, image=None):
+            if self.index >= 98:
+                return False, None
+            return super().read(image)
+
+        def grab(self) -> bool:
+            if self.index >= 98:
+                return False
+            return super().grab()
+
+    mock_cap = TruncatedCap(isopened=True, frame_count=100)
+    monkeypatch.setattr("cv2.VideoCapture", lambda _: mock_cap)
+
+    source = OpenCVVideoSource(dummy_file)
+    manager = VideoManager(25, False)
+    sec = VideoSection(0, 100)
+    sec_man = SectionManager([sec])
+    manager.open_source(source, sections=sec_man)
+
+    assert manager.frame_count == 100
+    assert sec.end == 100
+    assert len(manager.mapping) == 100
+
+    source.seek(99)
+    source.read()
+
+    assert manager.frame_count == 98
+    assert sec.end == 98
+    assert len(manager.mapping) == 98
+    manager.player.servant.join()
+    manager.player.master.join()
+    manager.trash.join()
