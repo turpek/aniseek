@@ -29,7 +29,9 @@ def reader_task(buffer: Buffer, data: ReaderTaskData) -> None:
     start = time()
 
     if start_frame >= source.frame_count:
-        raise IndexError("start_frame ultrapassou o limite de frames.")
+        buffer.sput((source.frame_count, None))
+        buffer.clear()
+        return
 
     source.seek(start_frame)
 
@@ -77,7 +79,4 @@ def reader(buffer: Buffer) -> None:
                 break
     except Exception as e:
         exc_info = traceback.format_exc()
-        buffer._error.put(e, exc_info)
-    finally:
-        buffer.set()
-        buffer.clear()
+        buffer._error.put((e, exc_info))

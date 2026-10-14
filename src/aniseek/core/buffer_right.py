@@ -145,9 +145,9 @@ class VideoBufferRight(IVideoBuffer):
         """
         if self.__mapping.empty():
             return True
-        elif isinstance(self.__frame_id, int) and self.__frame_id > self.__mapping[-1]:
-            self.__frame_id = self.__mapping[-1]
-        return self.__frame_id == self.__mapping[-1]
+        if isinstance(self.__frame_id, int):
+            return self.__frame_id >= self.__mapping[-1]
+        return False
 
     def is_done(self) -> bool:
         """
@@ -157,7 +157,7 @@ class VideoBufferRight(IVideoBuffer):
             bool
         """
         if not self._buffer.empty():
-            return self._buffer[-1] == self.__mapping[-1]
+            return self._buffer[-1] >= self.__mapping[-1]
         else:
             return self.is_task_complete()
 

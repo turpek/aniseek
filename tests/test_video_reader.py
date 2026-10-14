@@ -382,3 +382,34 @@ def test_reverse_reader_adaptive_buffersize(synthetic_cap):
     with ReverseReader(synthetic_cap, start=0, end=5, buffersize=10) as reader:
         assert reader.buffersize_left == 72
         assert reader.buffer.buffersize == 72
+
+
+def test_video_reader_eof_adjustment_closes_without_deadlock(tmp_path, monkeypatch):
+    """Verifica encerramento limpo sem deadlock quando o backend ajusta o frame_count no EOF."""
+    dummy_file = tmp_path / "truncated.mp4"
+    dummy_file.touch()
+
+    class TruncatedCap(MyVideoCapture):
+        def read(self, image=None):
+            if self.index >= 98:
+                return False, None
+            return super().read(image)
+
+        def grab(self) -> bool:
+            if self.index >= 98:
+                return False
+            return super().grab()
+
+    mock_cap = TruncatedCap(isopened=True, frame_count=100)
+    monkeypatch.setattr("cv2.VideoCapture", lambda _: mock_cap)
+
+    source = OpenCVVideoSource(dummy_file)
+    with VideoReader(source, start=90, buffersize=5) as reader:
+        read_frames = [reader.frame_id for _, _ in reader]
+        is_complete = reader.is_task_complete
+        extra_ret, extra_frame = reader.read()
+
+    assert read_frames == list(range(90, 98))
+    assert is_complete is True
+    assert extra_ret is False
+    assert extra_frame is None
