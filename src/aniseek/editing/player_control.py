@@ -360,8 +360,8 @@ class PlayerControl:
         self.set_read()
 
     def join(self):
-        self.servant.join()
-        self.master.join()
+        self.servant.join_like()
+        self.master.join_like()
 
     def get_buffer_left(self) -> VideoBufferLeft:
         """Retorna o VideoBufferLeft."""

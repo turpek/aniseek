@@ -413,3 +413,16 @@ def test_video_reader_eof_adjustment_closes_without_deadlock(tmp_path, monkeypat
     assert is_complete is True
     assert extra_ret is False
     assert extra_frame is None
+
+
+def test_video_reader_reverse_close_releases_threads_before_source(synthetic_cap):
+    """Encerra VideoReader em modo reverso aguardando termino de threads antes de liberar fonte."""
+    with VideoReader(synthetic_cap, start=0, end=50, direction=Direction.REVERSE, buffersize=10) as reader:
+        first_ret, first_frame = reader.read()
+        second_ret, second_frame = reader.read()
+        is_opened_during = synthetic_cap.is_opened()
+
+    assert first_ret is True
+    assert second_ret is True
+    assert is_opened_during is True
+    assert synthetic_cap.is_opened() is False
