@@ -9,14 +9,16 @@ Sua arquitetura é baseada em um sistema de duplo buffer concorrente (`VideoBuff
 ## ✨ Funcionalidades Principais
 
 - **Leitura Bidirecional Cooperativa (`VideoReader`):** Alternância instantânea de direção (`proceed` / `rewind`) com cache em memória entre buffers paralelos, eliminando redecodificação pesada. Atravessa mais de **500+ FPS** em leitura reversa com dimensionamento adaptativo de buffer proporcional ao FPS do vídeo.
-- **Abertura Instantânea (TTFF):** O `OpenCVVideoSource` adota resolução *lazy* de propriedades eliminando checagens sincronamente bloqueantes na abertura, além de busca binária $O(\log N)$ com janela de tolerância para frames corrompidos.
+- **Abertura Instantânea (TTFF) e Detecção Resiliente de EOF:** O `OpenCVVideoSource` adota resolução *lazy* de propriedades na abertura de arquivos, combinada com *reverse tail probe* e busca galopante $O(\log N)$ para contagem exata e determinística do último frame físico decodificável, prevenindo leituras inválidas e deadlocks.
+- **Indexação Binária de Keyframes (Matroska / EBML Cues):** Parser binário puro e de alta velocidade para containers Matroska (`.mkv`), extraindo pontos de quadros-chave diretamente em milissegundos sem invocar ferramentas externas como `mkvmerge`.
+- **Navegação de Playlist com Carregamento Sob Demanda (*Lazy Open*) e Prefill:** Alternância instantânea entre vídeos de uma lista de reprodução, com comandos dedicados de avanço e retrocesso com pré-aquecimento de buffer em RAM (`NextVideoEndCommand` / `PrevVideoEndCommand`) para reprodução reversa imediata a 50+ FPS.
 - **Leitores Unidirecionais Otimizados (`ForwardReader` e `ReverseReader`):** Leitura direta ou reversa com buffer único concorrente e baixo consumo de memória.
 - **Desacoplamento Total de Backend (`IFrameSource`):**
   - [`OpenCVVideoSource`](docs/sources.md): Decodificação de arquivos de vídeo via OpenCV.
   - [`ImageSource`](docs/sources.md): Leitura sequencial de diretórios de imagens (`.png`, `.jpg`, `.webp`, `.bmp`).
   - [`SourceRegistry`](docs/sources.md): Singleton com context manager (`use()`) e construtor inteligente (`from_default`) para resolução automática de formato.
 - **Visualizador e Editor Interativo (`FrameViewer`):**
-  - Interface visual limpa via OpenCV GUI com suporte a atalhos de teclado de alto nível via `pynput`.
+  - Interface visual limpa via OpenCV GUI com suporte a atalhos de teclado de alto nível via `pynput` e suporte a repetição suave de teclas via `HoldTimer`.
   - Loop canônico não-bloqueante orientado a eventos (`while not viewer.quit():`).
 - **Gerenciamento de Seções e Edição Não-Destrutiva:**
   - Divida (`Split`), junte (`Join`) e remova seções em tempo real.
