@@ -185,6 +185,7 @@ class ForwardReader(BaseVideoReader):
         self.buffer.set(frame_id)
 
     def close(self) -> None:
+        self.source._callback = lambda old, new: None
         self.buffer.join_like()
         self.source.release()
 
@@ -243,6 +244,7 @@ class ReverseReader(BaseVideoReader):
         self.buffer.set(frame_id)
 
     def close(self) -> None:
+        self.source._callback = lambda old, new: None
         self.buffer.join_like()
         self.source.release()
 
@@ -376,6 +378,7 @@ class VideoReader(BaseVideoReader):
         self.master.set(frame_id)
 
     def close(self) -> None:
+        self.source._callback = lambda old, new: None
         self.buf_right.join_like()
         self.buf_left.join_like()
         self.source.release()

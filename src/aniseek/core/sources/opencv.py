@@ -318,6 +318,7 @@ class OpenCVVideoSource(IFrameSource):
 
     def release(self) -> None:
         """Release underlying video capture resources."""
+        self._callback = lambda old, new: None
         if self.cap is not None:
             if self.cap.isOpened():
                 self.cap.release()

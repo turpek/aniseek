@@ -91,6 +91,15 @@ class Buffer(ABC, Channel1):
         self.clear_queue()
         self._primary.clear()
 
+    def purge(self) -> None:
+        """Descarta imediatamente todos os frames armazenados nos buffers primario e secundario."""
+        self._primary.clear()
+        while not self._secondary.empty():
+            try:
+                self._secondary.get_nowait()
+            except Exception:
+                break
+
     def clear_queue(self) -> None:
         """
         Removendo todos os elementos da Queue secondary.

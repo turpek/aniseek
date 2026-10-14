@@ -157,12 +157,22 @@ class Config:
         self._hold_interval = DEFAULT_HOLD_INTERVAL
         self.log_level = DEFAULT_LOG_LEVEL
 
+    VALID_KEYS: frozenset[str] = frozenset({
+        "buffersize",
+        "image_fps",
+        "video_extensions",
+        "image_extensions",
+        "hold_delay",
+        "hold_interval",
+        "log_level",
+    })
+
     @contextmanager
     def __call__(self, **kwargs: Any) -> Generator[Config, None, None]:
         """Aplica configurações temporárias dentro de um bloco 'with'."""
         old_state: dict[str, Any] = {}
         for key in kwargs:
-            if not hasattr(self, key) or key.startswith("_"):
+            if key not in self.VALID_KEYS:
                 raise AttributeError(f"Opção de configuração inválida: '{key}'")
             old_state[key] = getattr(self, key)
 
