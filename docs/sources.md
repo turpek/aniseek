@@ -75,7 +75,9 @@ with OpenCVVideoSource("meu_video.mp4") as src:
 
 #### Características e Otimizações de Performance:
 - **TTFF Instantâneo (Resolução *Lazy*):** Elimina validações síncronas pesadas durante a inicialização (`__init__`), permitindo abertura de vídeos grandes em milissegundos.
-- **Detecção Confinada via Busca Binária $O(\log N)$:** Em caso de metadados imprecisos ou vídeos corrompidos, utiliza busca binária com janela de tolerância para frames defeituosos pontuais, encontrando o limite real exato do arquivo sem penalizar o início da leitura.
+- **Indexação Binária de Keyframes (MKV Cues):** Extração direta e sem dependências externas dos pontos de chave (`Cues`) do container Matroska via parser EBML nativo (`extract_mkv_cues`).
+- **Reverse Tail Probe & Galloping Search:** Localiza deterministicamente o último frame decodificável usando candidatos a quadros-chave, sondagem reversa de cauda e busca galopante $O(\log N)$ para containers com metadados truncados.
+- **Hook `on_frame_count_changed`:** Notifica automaticamente os leitores e o gestor de seções (`SectionManager`) caso o total real de quadros seja ajustado durante a decodificação.
 - **`seek` Otimizado:** Só emite instrução de posicionamento para o container nativo caso o frame desejado seja diferente da posição atual do cursor.
 - **Suporte a `grab`:** Utiliza `cap.grab()` para avanços rápidos sem carga pesada de decodificação de pixels na CPU/GPU.
 

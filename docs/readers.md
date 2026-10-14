@@ -89,6 +89,10 @@ BaseVideoReader.from_default(
 >
 > **O padrão resiliente:** utilize sempre `is_task_complete` para governar o loop e utilize `continue` caso um frame individual falhe (`if not ret: continue`).
 
+> [!NOTE]
+> **Sincronização Automática com Fim Real de Vídeo (EOF):**
+> Em arquivos onde a contagem de frames nominal do container difere da contagem decodificável real (ex: containers Matroska com cabeçalho truncado ou streams variáveis), o `BaseVideoReader` ajusta dinamicamente seu `FrameMapper` ao receber o evento de ajuste do backend. Isso garante que `is_task_complete` se torne `True` deterministicamente ao alcançar o último frame físico do arquivo, evitando requisições além do fim e deadlocks no encerramento.
+
 ---
 
 ## 2. `ForwardReader` (Leitura Direta)
