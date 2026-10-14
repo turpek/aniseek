@@ -1,3 +1,5 @@
+import weakref
+
 import cv2
 import numpy as np
 import pytest
@@ -426,3 +428,24 @@ def test_video_reader_reverse_close_releases_threads_before_source(synthetic_cap
     assert second_ret is True
     assert is_opened_during is True
     assert synthetic_cap.is_opened() is False
+
+
+def test_video_reader_close_purges_buffers_and_breaks_circular_references(tmp_path, monkeypatch, mock_video_capture):
+    """Descarta buffers e quebra referencias circulares ao encerrar VideoReader."""
+    dummy_video = tmp_path / "video.mp4"
+    dummy_video.touch()
+    monkeypatch.setattr("cv2.VideoCapture", lambda _: mock_video_capture)
+    reader = VideoReader.from_default(dummy_video, start=0, end=50, buffersize=10)
+    reader.read()
+    w_reader = weakref.ref(reader)
+    w_source = weakref.ref(reader.source)
+    w_buf_r = weakref.ref(reader.buf_right)
+    w_buf_l = weakref.ref(reader.buf_left)
+
+    reader.close()
+    del reader
+
+    assert w_reader() is None
+    assert w_source() is None
+    assert w_buf_r() is None
+    assert w_buf_l() is None

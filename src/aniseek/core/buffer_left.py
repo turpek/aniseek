@@ -299,13 +299,11 @@ class VideoBufferLeft(IVideoBuffer):
         Returns:
             None
         """
-
-        # Caso a thread esteja fazendo uma task, devemos encerrá-la
-        self._buffer.end_task.set()
-        self._buffer.send(False)
-        self.thread.join()
+        self.join_like()
         if self.source is not None:
             self.source.release()
+            self.source = None
+            self.cap = None
 
     def join_like(self) -> None:
         """
@@ -317,6 +315,7 @@ class VideoBufferLeft(IVideoBuffer):
         self._buffer.end_task.set()
         self._buffer.send(False)
         self.thread.join()
+        self._buffer.purge()
 
     def put(self, frame_id: int, frame: ndarray) -> None:
         """
