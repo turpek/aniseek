@@ -293,6 +293,41 @@ def test_video_manager_updates_section_and_mapping_when_frame_count_changes(tmp_
     assert manager.frame_count == 98
     assert sec.end == 98
     assert len(manager.mapping) == 98
-    manager.player.servant.join()
-    manager.player.master.join()
+    manager.player.servant.join_like()
+    manager.player.master.join_like()
     manager.trash.join()
+
+
+def test_opencv_source_progressive_hole_recovery(tmp_path, monkeypatch):
+    """Recupera fluxo de decodificacao apos buraco de frames sem alterar frame_count."""
+    dummy_file = tmp_path / "video.mp4"
+    dummy_file.touch()
+
+    class HoleCap(MyVideoCapture):
+        def read(self, image=None):
+            if 10 <= self.index <= 20:
+                self.index += 1
+                return False, None
+            return super().read(image)
+
+        def grab(self) -> bool:
+            if 10 <= self.index <= 20:
+                self.index += 1
+                return False
+            return super().grab()
+
+    mock_cap = HoleCap(isopened=True, frame_count=100)
+    monkeypatch.setattr("cv2.VideoCapture", lambda _: mock_cap)
+
+    source = OpenCVVideoSource(dummy_file)
+    monkeypatch.setattr(source, "get_keyframes", lambda: [0, 24, 48, 72])
+
+    source.seek(10)
+    failed_ret, failed_frame = source.read()
+    recovered_ret, recovered_frame = source.read()
+
+    assert failed_ret is False
+    assert failed_frame is None
+    assert recovered_ret is True
+    assert recovered_frame is not None
+    assert source.frame_count == 100
