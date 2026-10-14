@@ -3,7 +3,6 @@ from __future__ import annotations
 from threading import Semaphore
 
 import numpy as np
-import pytest
 
 from aniseek.core.buffer import FakeBuffer
 from aniseek.core.interfaces.source import IFrameSource
@@ -75,10 +74,15 @@ def test_reader_task_skips_unmapped_frames_via_grab():
     assert buffer._secondary.get()[0] == 2
 
 
-def test_reader_task_raises_on_start_frame_out_of_bounds():
-    """Garante que IndexError é levantado quando start_frame excede frame_count."""
+def test_reader_task_enqueues_none_frame_when_start_out_of_bounds():
+    """Verifica se reader_task enfileira frame nulo quando start_frame excede frame_count."""
     buffer = FakeBuffer(Semaphore(), maxsize=5)
     source = FakeFrameSource(frame_count=5)
 
-    with pytest.raises(IndexError):
-        reader_task(buffer, (source, 10, 15, {10, 11}))
+    reader_task(buffer, (source, 10, 15, {10, 11}))
+
+    assert buffer._secondary.qsize() == 1
+    frame_id, frame = buffer._secondary.get()
+    assert frame_id == 5
+    assert frame is None
+    assert buffer.task_is_done() is True

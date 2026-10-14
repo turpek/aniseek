@@ -54,6 +54,12 @@ class BaseVideoReader(ABC):
         self.mapping = FrameMapper(self.frame_ids, self.total_frames)
         self.semaphore = Semaphore()
         self.buffersize = buffersize
+        self.source._callback = self._on_source_frame_count_changed
+
+    def _on_source_frame_count_changed(self, old_count: int, new_count: int) -> None:
+        self.total_frames = new_count
+        self.frame_ids = [f for f in self.frame_ids if f < new_count]
+        self.mapping.set_mapping(self.frame_ids, self.total_frames, [])
 
     def __len__(self) -> int:
         return len(self.frame_ids)

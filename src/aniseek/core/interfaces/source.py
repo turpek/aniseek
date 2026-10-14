@@ -1,4 +1,5 @@
 from abc import ABC, abstractmethod
+from collections.abc import Callable
 
 from numpy import ndarray
 
@@ -7,6 +8,7 @@ class IFrameSource(ABC):
     """Generic interface for frame extraction sources."""
 
     buffersize: int = 1
+    _callback: Callable[[int, int], None] = lambda old, new: None
 
     @property
     @abstractmethod
@@ -71,4 +73,4 @@ class IFrameSource(ABC):
 
     def on_frame_count_changed(self, old_count: int, new_count: int) -> None:
         """Hook called when the decodable frame count is adjusted."""
-        pass
+        self._callback(old_count, new_count)
