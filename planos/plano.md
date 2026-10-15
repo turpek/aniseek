@@ -18,6 +18,7 @@ Este documento centraliza todos os objetivos arquiteturais, otimizações estrut
 - [ ] 10. **Auditoria e Resolução dos 8 Testes Ignorados (`SKIPPED`).**
 - [ ] 11. **Limpeza de Código Morto e Estruturas Obsoletas em `editing` (`SimpleStack`).**
 - [ ] 12. **Melhorias Funcionais no `FrameViewer` (Navegação Go-To & OSD/HUD).**
+- [ ] 13. **Investigação e Correção de Quebra de Monotonicidade no Duplo Buffer (`VideoBufferError` no `set_frame`).** [INVESTIGAÇÃO / BUG CRÍTICO]
 
 ---
 
@@ -368,3 +369,71 @@ Esta tarefa agrega recursos de usabilidade e visualização profissional ao play
     - Timecode atual e duração total.
     - Estado da seção (Seção X/Y, modo Preview ativo/inativo).
   - Opção de alternar a visibilidade do overlay via tecla de atalho.
+
+---
+
+### Task 13: Investigação e Correção de Quebra de Monotonicidade no Duplo Buffer (`VideoBufferError` no `set_frame`)
+
+Esta tarefa investiga e corrige a falha crítica de integridade temporal no duplo buffer cooperativo (`VideoBufferRight` e `VideoBufferLeft`) ao executar saltos temporais descontinuados (`set_frame`), identificada durante a integração do `VideoReader` com servidores de streaming web.
+
+#### 1. Contexto e Relato do Problema
+
+Durante a reprodução e navegação via API/WebSocket, ao trocar de cena ou executar um salto para trás (`set_frame` com frame menor que a posição corrente da janela de decodificação), o leitor dispara a seguinte exceção fatal no backend:
+
+```text
+VideoBufferError: Inconsistency in operation: 'frame_id' '1000' is less than the current frame.
+```
+
+Essa exceção interrompe o pipeline de leitura, quebra a conexão HTTP/WebSocket silenciosamente e resulta no congelamento do frontend (painéis escuros/vazios sem frames subsequentes).
+
+#### 2. Diagnóstico Técnico e Causa Raiz
+
+O motor `VideoReader` opera com arquitetura cooperativa de dois buffers:
+- **`buf_right` (servant):** Thread de background que avança e pré-decodifica lotes à frente (+1).
+- **`buf_left` (master):** Histórico que armazena os frames já lidos para viabilizar avanço/retrocesso cooperativo sem redecodificação.
+
+A falha ocorre devido à interação assíncrona entre o salto de cursor e a fila de entrada do buffer passivo:
+
+1. **Frame Residual Assíncrono:**
+   Quando a reprodução avança (ex: frames `1494..1498`), a thread em background do `buf_right` já havia decodificado antecipadamente até o frame `1524`.
+   Ao invocar `reader.set_frame(1000)`, `buf_right.set(1000)` limpa os buffers, porém se a thread de captura já havia finalizado e enfileirado o frame `1524`, esse frame permanece na saída imediata da fila interna.
+2. **Entrega Fora de Ordem e Registro no `master`:**
+   Na primeira chamada a `reader.read()` logo após o salto, o leitor consome esse frame residual `1524`.
+   O `VideoReader.read()` (linha 373) executa:
+   ```python
+   self.master.put(self._frame_id, frame)  # self.master.put(1524, frame)
+   ```
+   O frame residual `1524` é registrado na cabeça do histórico do `buf_left`.
+3. **Quebra de Monotonicidade e Disparo da Exceção:**
+   Na leitura imediatamente seguinte, o seek para `1000` finalmente entrega o frame `1000`. O `VideoReader.read()` tenta registrá-lo:
+   ```python
+   self.master.put(1000, frame)
+   ```
+   O método `VideoBufferLeft.put()` valida estritamente a ordem crescente dos frames recebidos:
+   ```python
+   if self._buffer[0] > frame_id and len(self._buffer._primary) > 0:
+       raise VideoBufferError(f"Inconsistency in operation: 'frame_id' '{frame_id}' is less than the current frame.")
+   ```
+   Como `1524 > 1000`, a asserção temporal falha e interrompe o processo com `VideoBufferError`.
+
+#### 3. Hipóteses e Linhas de Ação para Resolução
+
+- **Hipótese A: Expurgo Determinístico e Cancelamento de Task Residual:**
+  Ao invocar `set_frame(frame_id)`, o buffer precisa garantir que frames decodificados pela tarefa anterior da thread sejam completamente drenados/descartados antes de aceitar novos reads, cancelando tarefas em voo.
+- **Hipótese B: Reset do Buffer `master` em Descontinuidades Temporais:**
+  O `buf_left` atua como cache contíguo para avanço/recuo de frames vizinhos. Um salto arbitrário (`set_frame`) representa uma descontinuidade de reprodução; o histórico anterior à descontinuidade deve ser resetado ou sincronizado com o novo cursor para evitar comparações entre linhas temporais desconexas.
+- **Hipótese C: Tratamento de Monotonicidade no `put` do Master:**
+  Avaliar se `put()` deve limpar o histórico do `master` quando detecta descontinuidade temporal explícita ou se a responsabilidade de orquestração deve residir no `VideoReader.set_frame()`.
+
+#### 📋 Sub-lista de Objetivos da Tarefa 13
+
+- [ ] **13.1. Reprodução Mínima em Teste Unitário:**
+  - Criar teste em `tests/test_video_reader.py` que avança alguns frames, dispara `set_frame` para trás e lê frames subsequentes, capturando a inconsistência temporal do `put()`.
+- [ ] **13.2. Auditoria da Drenagem de Filas em `set()` / `clear_buffer()`:**
+  - Inspecionar a sincronização entre a thread `reader_task` e a limpeza de `_primary` e `_secondary` no `BufferRight` / `BufferLeft`.
+- [ ] **13.3. Definição da Política de Integridade do `master` em Saltos Arbitrários:**
+  - Definir o comportamento do histórico do buffer passivo diante de seeks descontínuos no `VideoReader`.
+- [ ] **13.4. Implementação da Correção no Core:**
+  - Garantir que `set_frame()` seja determinístico e idempotente, sem vazamento de frames residuais anteriores ao seek.
+- [ ] **13.5. Validação de Regressão e Streaming Contínuo:**
+  - Executar a suíte completa de testes (`pytest`) e validar estabilidade com múltiplos saltos aleatórios contínuos.
