@@ -172,7 +172,7 @@ aniseek/
 ### 7.4. Desacoplamento de Backend de Decodificação (`IFrameSource`)
 - A decodificação e extração de frames é isolada pela interface abstrata `IFrameSource`.
 - `OpenCVVideoSource` é a implementação padrão baseada em OpenCV (`cv2.VideoCapture`).
-- O core (`reader_task`, buffers, `VideoReader`) consome estritamente o contrato da interface (`frame_count`, `fps`, `seek`, `read`, `grab`, `is_opened`, `release`), eliminando totalmente `hasattr`/`getattr` dinâmicos ou dependência direta de `cv2` no motor de leitura.
+- O core (`reader_task`, buffers, `VideoReader`) consome estritamente o contrato da interface (`frame_count`, `fps`, `size`, `seek`, `read`, `grab`, `is_opened`, `release`), eliminando totalmente `hasattr`/`getattr` dinâmicos ou dependência direta de `cv2` no motor de leitura.
 
 ### 7.5. Controle de Repetição de Teclas (`HoldTimer`) e Ciclo de Vida (`ButtonState`)
 - **Ciclo de Vida:** O subsistema de input emite eventos com `ButtonState` (`PRESS`, `HOLD`, `RELEASE`).
