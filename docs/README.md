@@ -15,7 +15,7 @@ Sua arquitetura é baseada em um sistema de duplo buffer concorrente (`VideoBuff
 - **Leitores Unidirecionais Otimizados (`ForwardReader` e `ReverseReader`):** Leitura direta ou reversa com buffer único concorrente e baixo consumo de memória.
 - **Desacoplamento Total de Backend de Decodificação (`IFrameSource`):**
   - [`OpenCVVideoSource`](sources.md): Decodificação de arquivos de vídeo via OpenCV (`cv2.VideoCapture`).
-  - [`PyAVVideoSource`](sources.md): Decodificação de alta performance via PyAV / FFmpeg, com suporte nativo a **AV1 10-bit (`libdav1d`)**, HEVC e H.264, cache FIFO de frames intermediários e pegada de memória desprezível.
+  - [`PyAVVideoSource`](sources.md): Decodificação de alta performance via PyAV / FFmpeg, com suporte nativo a **AV1 10-bit (`libdav1d`)**, HEVC e H.264, redimensionamento direto na decodificação (`target_size`), cache FIFO de frames intermediários e pegada de memória desprezível.
   - [`ImageSource`](sources.md): Leitura sequencial de diretórios de imagens (`.png`, `.jpg`, `.webp`, `.bmp`).
   - [`SourceRegistry`](sources.md): Factory inteligente com seleção por string (`backend="pyav"` ou `backend="opencv"`), context manager (`use()`) e construtor automático (`from_default`).
 - **Visualizador e Editor Desacoplado (`FrameViewer`):**
