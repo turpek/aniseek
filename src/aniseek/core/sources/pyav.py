@@ -1,148 +1,32 @@
 from __future__ import annotations
 
+import bisect
 from collections.abc import Callable, Iterator
-from enum import StrEnum
 from pathlib import Path
-from typing import Self
 
 import av
-import av.video.frame
-import numpy as np
+from loguru import logger
 from numpy import ndarray
 
 from aniseek.core.interfaces.source import IFrameSource
 from aniseek.core.keyframes import extract_keyframe_indices
 
 
-class PyAVFormat(StrEnum):
-    """Supported color formats for PyAV frame decoding."""
-
-    BGR = "bgr"
-    RGB = "rgb"
-    GRAY = "gray"
-    BGRA = "bgra"
-    RGBA = "rgba"
-
-    @property
-    def channels(self) -> int:
-        """Number of color channels in the format."""
-        return {
-            PyAVFormat.GRAY: 1,
-            PyAVFormat.BGR: 3,
-            PyAVFormat.RGB: 3,
-            PyAVFormat.BGRA: 4,
-            PyAVFormat.RGBA: 4,
-        }[self]
-
-    @property
-    def has_alpha(self) -> bool:
-        """Whether the format contains an alpha transparency channel."""
-        return self in (PyAVFormat.BGRA, PyAVFormat.RGBA)
-
-    def to_pix_fmt(self, dtype: np.dtype | type = np.uint8) -> str:
-        """Resolve the PyAV/FFmpeg pixel format string for the given NumPy dtype.
-
-        Args:
-            dtype (np.dtype | type): Desired data type (uint8, uint16, float32).
-
-        Returns:
-            str: PyAV compatible pixel format string.
-
-        Raises:
-            ValueError: If the combination of format and dtype is not supported.
-        """
-        resolved_dtype = np.dtype(dtype)
-
-        if self == PyAVFormat.GRAY:
-            if resolved_dtype == np.uint8:
-                return "gray"
-            if resolved_dtype == np.uint16:
-                return "gray16le"
-            if resolved_dtype == np.float32:
-                return "grayf32le"
-
-        elif self == PyAVFormat.BGR:
-            if resolved_dtype == np.uint8:
-                return "bgr24"
-            if resolved_dtype == np.uint16:
-                return "bgr48le"
-
-        elif self == PyAVFormat.RGB:
-            if resolved_dtype == np.uint8:
-                return "rgb24"
-            if resolved_dtype == np.uint16:
-                return "rgb48le"
-            if resolved_dtype == np.float32:
-                return "rgbf32le"
-
-        elif self == PyAVFormat.BGRA:
-            if resolved_dtype == np.uint8:
-                return "bgra"
-            if resolved_dtype == np.uint16:
-                return "bgra64le"
-
-        elif self == PyAVFormat.RGBA:
-            if resolved_dtype == np.uint8:
-                return "rgba"
-            if resolved_dtype == np.uint16:
-                return "rgba64le"
-            if resolved_dtype == np.float32:
-                return "rgbaf32le"
-
-        raise ValueError(
-            f"Unsupported combination for PyAVFormat.{self.name}: dtype={resolved_dtype}"
-        )
-
-
-def _resolve_pix_fmt(
-    format_spec: PyAVFormat | str,
-    dtype: np.dtype | type,
-) -> tuple[str, np.dtype]:
-    """Resolve format specification and dtype to a PyAV pixel format string and dtype."""
-    resolved_dtype = np.dtype(dtype)
-
-    if isinstance(format_spec, PyAVFormat):
-        return format_spec.to_pix_fmt(resolved_dtype), resolved_dtype
-
-    format_str = str(format_spec).strip()
-    try:
-        enum_val = PyAVFormat(format_str.lower())
-        return enum_val.to_pix_fmt(resolved_dtype), resolved_dtype
-    except ValueError:
-        pass
-
-    if format_str in av.video.frame.supported_np_pix_fmts:
-        return format_str, resolved_dtype
-
-    raise ValueError(
-        f"Unknown or unsupported video format: '{format_spec}' with dtype {resolved_dtype}"
-    )
-
-
 class PyAVVideoSource(IFrameSource):
-    """High-performance video frame source backed by PyAV (FFmpeg/libdav1d)."""
+    """Frame source implementation backed by PyAV (FFmpeg/libdav1d)."""
 
     def __init__(
         self,
         path: str | Path,
         *,
-        format: PyAVFormat | str = PyAVFormat.BGR,
-        dtype: np.dtype | type = np.uint8,
-        readonly: bool = False,
         buffersize: int = 30,
         fps: float | None = None,
-        thread_type: str = "AUTO",
-        thread_count: int = 0,
     ) -> None:
         self.path = Path(path)
         if not self.path.exists():
             raise RuntimeError(f"Could not open video file: {self.path}")
         if self.path.is_dir():
             raise RuntimeError(f"Path is a directory, not a video file: {self.path}")
-
-        self._pix_fmt, self._dtype = _resolve_pix_fmt(format, dtype)
-        self._format_spec = format
-        self.readonly = readonly
 
         try:
             self._container: av.container.InputContainer | None = av.open(
@@ -158,19 +42,8 @@ class PyAVVideoSource(IFrameSource):
 
         self._stream: av.video.stream.VideoStream = video_streams[0]
 
-        if thread_type:
-            try:
-                self._stream.codec_context.thread_type = thread_type
-            except (AttributeError, ValueError):
-                pass
-        if thread_count > 0:
-            try:
-                self._stream.codec_context.thread_count = thread_count
-            except (AttributeError, ValueError):
-                pass
-
         detected_fps = float(
-            self._stream.average_rate or self._stream.guessed_rate or 24.0
+            self._stream.average_rate or self._stream.guessed_rate or 0.0
         )
         self._fps = float(fps) if fps is not None and fps > 0.0 else detected_fps
 
@@ -199,50 +72,6 @@ class PyAVVideoSource(IFrameSource):
         self._keyframe_indices: list[int] | None = None
         self._callback: Callable[[int, int], None] = lambda old, new: None
 
-    @property
-    def frame_count(self) -> int:
-        """Total number of frames available in the video."""
-        return self._frame_count
-
-    @property
-    def fps(self) -> float:
-        """Frames per second of the video."""
-        return self._fps
-
-    @property
-    def width(self) -> int:
-        """Video frame width in pixels."""
-        return self._stream.width
-
-    @property
-    def height(self) -> int:
-        """Video frame height in pixels."""
-        return self._stream.height
-
-    @property
-    def shape(self) -> tuple[int, ...]:
-        """Shape of the decoded NumPy ndarray (H, W) or (H, W, C)."""
-        if self._pix_fmt in ("gray", "gray16le", "grayf32le"):
-            return self.height, self.width
-        if self._pix_fmt in ("rgba", "rgba64le", "bgra", "bgra64le", "rgbaf32le"):
-            return self.height, self.width, 4
-        return self.height, self.width, 3
-
-    @property
-    def format(self) -> PyAVFormat | str:
-        """Configured format specification."""
-        return self._format_spec
-
-    @property
-    def dtype(self) -> np.dtype:
-        """Target NumPy dtype for decoded frames."""
-        return self._dtype
-
-    @property
-    def codec_name(self) -> str:
-        """Underlying codec name (e.g. 'libdav1d', 'h264', 'hevc')."""
-        return self._stream.codec_context.name
-
     def on_frame_count_changed(self, old_count: int, new_count: int) -> None:
         """Hook called when the decodable frame count is adjusted."""
         self._callback(old_count, new_count)
@@ -257,47 +86,18 @@ class PyAVVideoSource(IFrameSource):
             self._keyframe_indices = extract_keyframe_indices(self.path, self._fps)
         return self._keyframe_indices
 
-    def is_opened(self) -> bool:
-        """Check if the underlying container is currently open.
+    @property
+    def frame_count(self) -> int:
+        """Total number of frames available in the video."""
+        return self._frame_count
 
-        Returns:
-            bool: True if open, False otherwise.
-        """
-        return self._container is not None
-
-    def release(self) -> None:
-        """Close container and release all decoding resources."""
-        if self._container is not None:
-            self._container.close()
-            self._container = None
-        self._generator = None
-        self._pending_frame = None
-        self._eof = True
-
-    def __enter__(self) -> Self:
-        return self
-
-    def __exit__(self, exc_type: object, exc_val: object, exc_tb: object) -> None:
-        self.release()
-
-    def _get_generator(self) -> Iterator[av.VideoFrame]:
-        if self._generator is None and self._container is not None:
-            self._generator = self._container.decode(self._stream)
-        if self._generator is None:
-            return iter([])
-        return self._generator
-
-    def _decode_next(self) -> av.VideoFrame | None:
-        if self._eof or self._container is None:
-            return None
-        try:
-            return next(self._get_generator())
-        except (StopIteration, av.AVError):
-            self._eof = True
-            return None
+    @property
+    def fps(self) -> float:
+        """Frames per second of the video."""
+        return self._fps
 
     def seek(self, frame_id: int) -> None:
-        """Position cursor at frame_id with exact keyframe resolution.
+        """Position the cursor at the specified frame ID.
 
         Args:
             frame_id (int): Target frame index (0-based).
@@ -315,6 +115,7 @@ class PyAVVideoSource(IFrameSource):
         ):
             return
 
+        # Fast forward if target is very close ahead
         if 0 < frame_id - self._current_pos <= 5 and not self._eof:
             skip_count = frame_id - self._current_pos
             for _ in range(skip_count):
@@ -337,8 +138,8 @@ class PyAVVideoSource(IFrameSource):
                 return
 
             if frame.pts is not None:
-                pts_relative = frame.pts - self._start_offset
-                f_idx = int(round(pts_relative * self._time_base * self._fps))
+                pts_rel = frame.pts - self._start_offset
+                f_idx = int(round(pts_rel * self._time_base * self._fps))
             else:
                 f_idx = self._current_pos
 
@@ -360,22 +161,23 @@ class PyAVVideoSource(IFrameSource):
             frame = self._pending_frame
             self._pending_frame = None
             self._current_pos += 1
-        else:
-            frame = self._decode_next()
-            if frame is None:
-                return False, None
-            self._current_pos += 1
+            arr = frame.to_ndarray(format="bgr24")
+            return True, arr
 
-        arr = frame.to_ndarray(format=self._pix_fmt)
-        if self.readonly:
-            arr.flags.writeable = False
-        return True, arr
+        frame = self._decode_next()
+        if frame is not None:
+            self._current_pos += 1
+            arr = frame.to_ndarray(format="bgr24")
+            return True, arr
+
+        self._handle_read_failure()
+        return False, None
 
     def grab(self) -> bool:
-        """Advance cursor without decoding/converting the full array.
+        """Advance cursor without decoding the frame.
 
         Returns:
-            bool: True if next frame could be grabbed/skipped, False otherwise.
+            bool: True if next frame could be grabbed, False otherwise.
         """
         if not self.is_opened():
             return False
@@ -386,43 +188,235 @@ class PyAVVideoSource(IFrameSource):
             return True
 
         frame = self._decode_next()
-        if frame is None:
+        if frame is not None:
+            self._current_pos += 1
+            return True
+
+        self._handle_read_failure()
+        return False
+
+    def _get_generator(self) -> Iterator[av.VideoFrame]:
+        if self._generator is None and self._container is not None:
+            self._generator = self._container.decode(self._stream)
+        if self._generator is None:
+            return iter([])
+        return self._generator
+
+    def _decode_next(self) -> av.VideoFrame | None:
+        if self._eof or self._container is None:
+            return None
+        try:
+            return next(self._get_generator())
+        except (StopIteration, av.AVError):
+            self._eof = True
+            return None
+
+    def _probe_frame(self, target_frame: int) -> bool:
+        """Test if target_frame is decodable in the stream."""
+        if self._container is None or target_frame < 0:
+            return False
+        try:
+            target_pts = self._start_offset + int(
+                round(target_frame / (self._fps * self._time_base))
+            )
+            self._container.seek(target_pts, stream=self._stream, backward=True)
+            for frame in self._container.decode(self._stream):
+                if frame.pts is not None:
+                    pts_rel = frame.pts - self._start_offset
+                    f_idx = int(round(pts_rel * self._time_base * self._fps))
+                else:
+                    f_idx = target_frame
+                if f_idx >= target_frame:
+                    return True
+            return False
+        except Exception:
             return False
 
-        self._current_pos += 1
-        return True
+    def _handle_read_failure(self, probe_window: int = 5) -> None:
+        """Handle unexpected read or grab failure with tail probe and EOF resolution."""
+        if self._container is None or self._frame_count <= 0:
+            return
 
-    @classmethod
-    def fast_gray(
-        cls,
-        path: str | Path,
-        *,
-        buffersize: int = 30,
-        fps: float | None = None,
-    ) -> PyAVVideoSource:
-        """Create a grayscale PyAVVideoSource for high throughput and single-channel processing."""
-        return cls(
-            path,
-            format=PyAVFormat.GRAY,
-            dtype=np.uint8,
-            buffersize=buffersize,
-            fps=fps,
-        )
+        current_pos = self._current_pos
+        if current_pos >= self._frame_count:
+            return
 
-    @classmethod
-    def high_fidelity(
-        cls,
-        path: str | Path,
-        *,
-        format: PyAVFormat | str = PyAVFormat.BGR,
-        buffersize: int = 30,
-        fps: float | None = None,
-    ) -> PyAVVideoSource:
-        """Create a 16-bit high-fidelity PyAVVideoSource preserving 10-bit/12-bit HDR color depth."""
-        return cls(
-            path,
-            format=format,
-            dtype=np.uint16,
-            buffersize=buffersize,
-            fps=fps,
-        )
+        # 1. Reverse tail probe se a falha ocorreu proximo a cauda do stream
+        if current_pos >= self._frame_count - probe_window:
+            for target in range(current_pos - 1, max(-1, current_pos - probe_window - 1), -1):
+                if self._probe_frame(target):
+                    new_count = target + 1
+                    logger.info(
+                        f"Adjusted frame count from nominal {self._frame_count} "
+                        f"to actual decodable {new_count} via tail probe."
+                    )
+                    old_count = self._frame_count
+                    self._frame_count = new_count
+                    self.on_frame_count_changed(old_count, new_count)
+                    return
+            self._find_true_frame_count()
+            return
+
+        # 2. Tentativas exponenciais 2^N para N de 0 a 4 (passos 1, 2, 4, 8, 16)
+        last_failed = current_pos
+        for n in range(5):
+            target = current_pos + (1 << n)
+            if target >= self._frame_count:
+                break
+            if self._probe_frame(target):
+                logger.warning(
+                    f"Corrupted frame detected at index {current_pos}; "
+                    f"recovered decodable stream at index {target}."
+                )
+                self.seek(target + 1)
+                return
+            last_failed = target
+
+        # 3. Se o video possui keyframes, busca galopante nos keyframes a frente
+        kfs = self.get_keyframes()
+        if kfs:
+            start_idx = bisect.bisect_right(kfs, last_failed)
+            step_kf = 1
+            curr_idx = start_idx
+            b_low = start_idx
+            b_high = None
+
+            while curr_idx < len(kfs) and kfs[curr_idx] < self._frame_count:
+                target = kfs[curr_idx]
+                if self._probe_frame(target):
+                    b_high = curr_idx
+                    break
+                last_failed = target
+                b_low = curr_idx + 1
+                curr_idx = start_idx + step_kf
+                step_kf *= 2
+
+            if b_high is not None:
+                low = b_low
+                high = b_high
+                best_kf_idx = b_high
+                while low <= high:
+                    mid = (low + high) // 2
+                    if self._probe_frame(kfs[mid]):
+                        best_kf_idx = mid
+                        high = mid - 1
+                    else:
+                        low = mid + 1
+                first_valid_kf = kfs[best_kf_idx]
+                logger.warning(
+                    f"Stream hole detected starting at index {current_pos}; "
+                    f"recovered decodable stream at keyframe {first_valid_kf}."
+                )
+                self.seek(first_valid_kf + 1)
+                return
+
+        # 4. Nenhum frame decodifica ate o fim: arquivo acabou ali
+        self._find_true_frame_count()
+
+    def _find_true_frame_count(self) -> int:
+        """Locate the exact last decodable frame using keyframe candidates or binary search."""
+        if self._container is None or self._frame_count <= 0:
+            return self._frame_count
+
+        kfs = self.get_keyframes()
+        if kfs:
+            candidates = [k for k in kfs if k < self._frame_count]
+            if candidates:
+                low = 0
+                high = len(candidates) - 1
+                last_good_kf = -1
+                while low <= high:
+                    mid = (low + high) // 2
+                    if self._probe_frame(candidates[mid]):
+                        last_good_kf = candidates[mid]
+                        low = mid + 1
+                    else:
+                        high = mid - 1
+
+                if last_good_kf >= 0:
+                    pts = self._start_offset + int(
+                        round(last_good_kf / (self._fps * self._time_base))
+                    )
+                    self._container.seek(pts, stream=self._stream, backward=True)
+                    last_idx = last_good_kf
+                    for frame in self._container.decode(self._stream):
+                        if frame.pts is not None:
+                            pts_rel = frame.pts - self._start_offset
+                            idx = int(round(pts_rel * self._time_base * self._fps))
+                        else:
+                            idx = last_idx + 1
+                        last_idx = idx
+
+                    new_count = last_idx + 1
+                    if 0 < new_count != self._frame_count:
+                        logger.info(
+                            f"Adjusted frame count from nominal {self._frame_count} "
+                            f"to actual decodable {new_count} via keyframe candidates."
+                        )
+                        old_count = self._frame_count
+                        self._frame_count = new_count
+                        self.on_frame_count_changed(old_count, new_count)
+                    return self._frame_count
+
+        # Fallback sem keyframes: busca binaria
+        low = 0
+        high = self._frame_count - 1
+        last_good = -1
+        while low <= high:
+            mid = (low + high) // 2
+            if self._probe_frame(mid):
+                last_good = mid
+                low = mid + 1
+            else:
+                high = mid - 1
+
+        if last_good >= 0:
+            new_count = last_good + 1
+            if 0 < new_count != self._frame_count:
+                logger.info(
+                    f"Adjusted frame count from nominal {self._frame_count} "
+                    f"to actual decodable {new_count} via binary search."
+                )
+                old_count = self._frame_count
+                self._frame_count = new_count
+                self.on_frame_count_changed(old_count, new_count)
+
+        return self._frame_count
+
+    def validate_frame_count(self) -> int:
+        """Validate and adjust frame_count on-demand via binary search.
+
+        Returns:
+            int: The actual decodable frame count.
+        """
+        if self._container is None or self._frame_count <= 0:
+            return self._frame_count
+
+        if self._probe_frame(self._frame_count - 1):
+            return self._frame_count
+
+        return self._find_true_frame_count()
+
+    def is_opened(self) -> bool:
+        """Check if the video source is currently open.
+
+        Returns:
+            bool: True if open, False otherwise.
+        """
+        return self._container is not None
+
+    def release(self) -> None:
+        """Release underlying video capture and decoding resources."""
+        self._callback = lambda old, new: None
+        if self._container is not None:
+            self._container.close()
+            self._container = None
+        self._generator = None
+        self._pending_frame = None
+        self._eof = True
+
+    def __enter__(self) -> PyAVVideoSource:
+        return self
+
+    def __exit__(self, exc_type: object, exc_val: object, exc_tb: object) -> None:
+        self.release()
