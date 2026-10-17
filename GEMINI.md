@@ -211,4 +211,12 @@ aniseek/
 - **Suporte a Codecs Modernos:** Resolve limitações do OpenCV para codecs avançados (notadamente AV1 10-bit `yuv420p10le`, HEVC e perfis avançados de H.264) via `libdav1d`/FFmpeg.
 - **Resolução Precisa de Fim de Vídeo:** Incorpora busca rápida pelo fim real do vídeo (`validate_frame_count` e `_find_true_frame_count`) via busca binária em keyframes e reverse tail probe, prevenindo travamentos ou starvation causados por metadados de duração truncados.
 
+### 7.11. Desacoplamento de Display e Renderizador de Janela (`IFrameDisplay`)
+- **Abstração de Janela e Renderização:** A interface `IFrameDisplay` isola a renderização de frames e o ciclo de vida da janela (`create_window`, `show_frame`, `set_title`, `close`).
+- **Implementação Padrão OpenCV (`CV2Display`):** Gerencia a exibição gráfica via OpenCV HighGUI (`cv2.namedWindow`, `cv2.imshow`, `cv2.setWindowTitle`, `cv2.destroyWindow`) sob o identificador padronizado de janela `"aniseek"` e títulos limpos (sem prefixo `videoseq`).
+- **Suporte a Modo Headless (`NullDisplay`):** Permite executar o `FrameViewer` sem servidor gráfico (X11/Wayland), facilitando testes unitários rápidos, pipelines de CI/CD e processamento em lote.
+- **Convenção de Atributos Protegidos:** Refatoração de atributos do `FrameViewer` substituindo `self.__` (name mangling) por `self._` para maior clareza e extensibilidade.
+- **Seleção Unificada de Backend:** `SourceRegistry.create_source`, `FrameViewer.from_default` e `VideoReader.from_default` suportam seleção de backend por string (`backend="pyav"` ou `backend="opencv"`).
+
+
 
