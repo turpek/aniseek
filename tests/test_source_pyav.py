@@ -6,7 +6,7 @@ import av
 import numpy as np
 import pytest
 
-from aniseek.core.sources.pyav import PyAVVideoSource
+from aniseek.core.sources.pyav import PyAVBuffer, PyAVVideoSource
 from aniseek.core.sources.registry import source_registry
 from aniseek.core.video_reader import Direction, VideoReader
 
@@ -116,6 +116,26 @@ def test_pyav_source_registry_override(synthetic_video_path: Path):
     assert isinstance(source, PyAVVideoSource)
     assert ret is True
     assert frame is not None
+
+
+def test_pyav_buffer_caching_and_eviction(synthetic_video_path: Path):
+    """Valida retencao de frames intermediarios e politica de descarte por max_size."""
+    container = av.open(str(synthetic_video_path))
+    stream = container.streams.video[0]
+    buffer = PyAVBuffer(container, stream, fps=24.0, max_size=5)
+
+    buffer.seek(4)
+    frame4 = buffer.decode(4)
+
+    assert frame4 is not None
+    assert len(buffer.cache) <= 5
+    assert buffer.probe(2) is True
+
+    cached_frame2 = buffer.decode(2)
+    assert cached_frame2 is not None
+
+    buffer.release()
+    container.close()
 
 
 AV1_SAMPLE_PATH = Path(
