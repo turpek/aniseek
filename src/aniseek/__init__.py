@@ -5,7 +5,7 @@ from importlib.metadata import PackageNotFoundError, version
 try:
     __version__ = version("aniseek")
 except PackageNotFoundError:
-    __version__ = "0.3.0a0"
+    __version__ = "0.3.0a1"
 
 from aniseek.config import config
 from aniseek.core.sources.pyav import PyAVVideoSource

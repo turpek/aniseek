@@ -1,6 +1,6 @@
 [project]
 name = "aniseek"
-version = "0.3.0a0"
+version = "0.3.0a1"
 description = "Motor inteligente para busca, navegação e leitura precisa de frames de vídeo"
 readme = "README.md"
 requires-python = ">=3.12"
