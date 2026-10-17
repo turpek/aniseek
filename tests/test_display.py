@@ -114,6 +114,8 @@ def test_frame_viewer_with_null_display(tmp_path):
 
         assert isinstance(viewer.display, NullDisplay)
         assert viewer.display.is_open is True
+        assert viewer.controller is viewer.video_controller
+        assert viewer.video_manager is viewer._video_manager
 
         flag, frame = viewer.read()
         viewer.show(flag, frame)

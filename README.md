@@ -1,6 +1,6 @@
 # aniseek
 
-**aniseek** é um motor inteligente para busca, navegação e leitura precisa frame a frame de vídeos e sequências de imagens, desenvolvido em Python 3.12+. Focado na manipulação, fatiamento e extração temporal de frames, o aniseek oferece avanço e retrocesso instantâneos via buffers concorrentes em memória e um visualizador/editor desacoplado.
+**aniseek** é um motor inteligente para busca, navegação e leitura precisa frame a frame de vídeos e sequências de imagens, desenvolvido em Python 3.12+. Focado na manipulação, fatiamento e extração temporal de frames, o aniseek oferece avanço e retrocesso instantâneos via buffers concorrentes em memória e um visualizador/editor totalmente desacoplado.
 
 Sua arquitetura é baseada em um sistema de duplo buffer concorrente (`VideoBufferLeft` e `VideoBufferRight`), que permite alternância de marcha temporal com latência zero e consumo cooperativo entre `proceed` (+1) e `rewind` (-1).
 
@@ -9,23 +9,26 @@ Sua arquitetura é baseada em um sistema de duplo buffer concorrente (`VideoBuff
 ## ✨ Funcionalidades Principais
 
 - **Leitura Bidirecional Cooperativa (`VideoReader`):** Alternância instantânea de direção (`proceed` / `rewind`) com cache em memória entre buffers paralelos, eliminando redecodificação pesada. Atravessa mais de **500+ FPS** em leitura reversa com dimensionamento adaptativo de buffer proporcional ao FPS do vídeo.
-- **Abertura Instantânea (TTFF) e Detecção Resiliente de EOF:** O `OpenCVVideoSource` adota resolução *lazy* de propriedades na abertura de arquivos, combinada com *reverse tail probe* e busca galopante $O(\log N)$ para contagem exata e determinística do último frame físico decodificável, prevenindo leituras inválidas e deadlocks.
-- **Indexação Binária de Keyframes (Matroska / EBML Cues):** Parser binário puro e de alta velocidade para containers Matroska (`.mkv`), extraindo pontos de quadros-chave diretamente em milissegundos sem invocar ferramentas externas como `mkvmerge`.
+- **Abertura Instantânea (TTFF) e Detecção Resiliente de EOF:** Resolução *lazy* de propriedades na abertura de arquivos, combinada com *reverse tail probe* e busca galopante $O(\log N)$ para contagem exata e determinística do último frame físico decodificável, prevenindo leituras inválidas e deadlocks.
+- **Indexação Binária de Keyframes (Matroska / EBML Cues):** Parser binário puro e de alta velocidade para containers Matroska (`.mkv`), extraindo pontos de quadros-chave diretamente em milissegundos sem invocar ferramentas externas.
 - **Navegação de Playlist com Carregamento Sob Demanda (*Lazy Open*) e Prefill:** Alternância instantânea entre vídeos de uma lista de reprodução, com comandos dedicados de avanço e retrocesso com pré-aquecimento de buffer em RAM (`NextVideoEndCommand` / `PrevVideoEndCommand`) para reprodução reversa imediata a 50+ FPS.
 - **Leitores Unidirecionais Otimizados (`ForwardReader` e `ReverseReader`):** Leitura direta ou reversa com buffer único concorrente e baixo consumo de memória.
-- **Desacoplamento Total de Backend (`IFrameSource`):**
-  - [`OpenCVVideoSource`](docs/sources.md): Decodificação de arquivos de vídeo via OpenCV.
+- **Desacoplamento Total de Backend de Decodificação (`IFrameSource`):**
+  - [`OpenCVVideoSource`](docs/sources.md): Decodificação de arquivos de vídeo via OpenCV (`cv2.VideoCapture`).
+  - [`PyAVVideoSource`](docs/sources.md): Decodificação de alta performance via PyAV / FFmpeg, com suporte nativo a **AV1 10-bit (`libdav1d`)**, HEVC e H.264, cache FIFO de frames intermediários e pegada de memória desprezível.
   - [`ImageSource`](docs/sources.md): Leitura sequencial de diretórios de imagens (`.png`, `.jpg`, `.webp`, `.bmp`).
-  - [`SourceRegistry`](docs/sources.md): Singleton com context manager (`use()`) e construtor inteligente (`from_default`) para resolução automática de formato.
-- **Visualizador e Editor Interativo (`FrameViewer`):**
-  - Interface visual limpa via OpenCV GUI com suporte a atalhos de teclado de alto nível via `pynput` e suporte a repetição suave de teclas via `HoldTimer`.
-  - Loop canônico não-bloqueante orientado a eventos (`while not viewer.quit():`).
+  - [`SourceRegistry`](docs/sources.md): Factory inteligente com seleção por string (`backend="pyav"` ou `backend="opencv"`), context manager (`use()`) e construtor automático (`from_default`).
+- **Visualizador e Editor Desacoplado (`FrameViewer`):**
+  - **Exibição Desacoplada (`IFrameDisplay`):** Renderizador padrão OpenCV ([`CV2Display`](docs/viewer.md)) e suporte nativo a modo headless ([`NullDisplay`](docs/viewer.md)) para testes e pipelines de CI/CD sem dependência de X11/Wayland.
+  - **Entrada Desacoplada (`InputHandler`):** Captura de teclas flexível via [`PynputKeyReader`](docs/viewer.md) (com suporte nativo a modificadores no SO) e [`CV2KeyReader`](docs/viewer.md), ou classes personalizadas.
+  - **Repetição Suave (`HoldTimer`):** Diferenciação de clique rápido (exatamente 1 frame) de tecla pressionada contínua com repetição suave e configurável.
+  - **Título Dinâmico e Limpo:** Sem prefixos legados, exibindo seções ativas, frames relativos e globais, direção e playlist via [`TitleFormatter`](docs/viewer.md).
 - **Gerenciamento de Seções e Edição Não-Destrutiva:**
   - Divida (`Split`), junte (`Join`) e remova seções em tempo real.
   - Lixeira (`Trash`) com histórico Memento para desfazer (`undo`) remoção de frames ou seções.
   - Modo Preview (*Rough Cut*) para visualização contínua das seções ativas.
 - **Persistência Explícita:**
-  - Fim do salvamento forçado. Salve explicitamente via método `.save()` ou atalho de teclado (`Ctrl + w` / `Shift + w`).
+  - Salve explicitamente via método `.save()` ou atalho de teclado (`Ctrl + w` / `Shift + w`).
   - Suporte a injeção de seções em múltiplos formatos: `dict`, arquivo `.json` ou instância de `SectionManager`.
 - **Extensibilidade com Padrão Command:**
   - Vincule comandos personalizados com tipagem estrita via `viewer.bind(key, command)`.
@@ -36,10 +39,11 @@ Sua arquitetura é baseada em um sistema de duplo buffer concorrente (`VideoBuff
 ## 🛠️ Tecnologias Utilizadas
 
 - [Python 3.12+](https://www.python.org/)
-- [OpenCV (`opencv-python`)](https://pypi.org/project/opencv-python/): Decodificação e exibição nativa de frames.
+- [PyAV (`av`)](https://pyav.org/): Decodificação avançada via FFmpeg com suporte nativo a AV1 10-bit e HEVC.
+- [OpenCV (`opencv-python`)](https://pypi.org/project/opencv-python/): Decodificação e exibição gráfica de frames.
 - [pynput](https://pypi.org/project/pynput/): Captura precisa de modificadores de teclado (`Ctrl`, `Shift`, `Alt`) em nível de sistema operacional.
 - [NumPy](https://numpy.org/): Manipulação eficiente de arrays de frames.
-- [Loguru](https://github.com/Delgan/loguru): Logging estruturado.
+- [Loguru](https://github.com/Delgan/loguru): Logging estruturado de alto desempenho com proteção de hot-path.
 - [uv](https://github.com/astral-sh/uv): Gerenciamento moderno de pacotes e ambientes virtuais.
 
 ---
@@ -66,7 +70,7 @@ pip install -e .
 
 ## 📖 Exemplos de Uso
 
-### 1. Leitura de Vídeo com `VideoReader`
+### 1. Leitura de Vídeo Bidirecional (`VideoReader`)
 
 ```python
 from aniseek import VideoReader
@@ -82,30 +86,50 @@ with VideoReader.from_default("video.mp4") as reader:
     print(f"Frame lido: {frame_id}")
 ```
 
-### 2. Leitura com Injeção de Backend Explícito
+### 2. Leitura com Seleção de Backend (`PyAV` ou `OpenCV`)
 
 ```python
-from aniseek import ForwardReader
-from aniseek.core.sources import OpenCVVideoSource, ImageSource
+from aniseek import VideoReader
 
-# Injeção de backend de vídeo:
-source = OpenCVVideoSource("video.mp4")
-with ForwardReader(source, start="01:00", end="01:30", step=2) as reader:
+# Leitura com backend PyAV (ideal para AV1 10-bit ou HEVC):
+with VideoReader.from_default("anime.mkv", backend="pyav") as reader:
     for ret, frame in reader:
         if not ret:
             continue
         # Processar frame
 
-# Injeção de backend de pasta de imagens:
-img_source = ImageSource("frames_dir/", fps=24.0)
-with ForwardReader(img_source) as reader:
+# Leitura com backend OpenCV padrão:
+with VideoReader.from_default("video.mp4", backend="opencv") as reader:
     for ret, frame in reader:
         if not ret:
             continue
-        # Processar imagem
+        # Processar frame
 ```
 
-### 3. Visualizador e Editor (`FrameViewer`)
+### 3. Leitores Unidirecionais Especializados
+
+```python
+from aniseek import ForwardReader, ReverseReader
+from aniseek.core.sources import ImageSource, PyAVVideoSource
+
+# Avanço direto fatiado por tempo:
+source = PyAVVideoSource("video.mkv")
+with ForwardReader(source, start="01:00", end="01:30", step=2) as reader:
+    for ret, frame in reader:
+        if ret:
+            # Frame lido
+            pass
+
+# Retrocesso direto a partir de diretório de imagens:
+img_source = ImageSource("frames_dir/", fps=24.0)
+with ReverseReader(img_source) as reader:
+    for ret, frame in reader:
+        if ret:
+            # Frame lido de trás para frente
+            pass
+```
+
+### 4. Visualizador e Editor (`FrameViewer`)
 
 O loop canônico e idiomático do `FrameViewer` é governado por `while not viewer.quit():`:
 
@@ -118,7 +142,19 @@ with FrameViewer.from_default("video.mp4") as viewer:
         viewer.show(ret, frame)
 ```
 
-### 4. Injeção de Seções e Salvamento Explícito
+### 5. Visualizador em Modo Headless (Sem Janela / CI / Testes)
+
+```python
+from aniseek.view import FrameViewer, NullDisplay
+
+# display="null" executa sem abrir nenhuma janela na tela
+with FrameViewer.from_default("video.mp4", display="null") as viewer:
+    for _ in range(30):
+        ret, frame = viewer.read()
+        viewer.show(ret, frame)
+```
+
+### 6. Injeção de Seções e Salvamento Explícito
 
 ```python
 from aniseek.view import FrameViewer
@@ -141,7 +177,7 @@ with FrameViewer.from_default("video.mp4", sections=sections_data) as viewer:
         viewer.show(ret, frame)
 ```
 
-### 5. Comandos Personalizados e `MacroCommand`
+### 7. Comandos Personalizados e `MacroCommand`
 
 ```python
 from aniseek.view import FrameViewer
@@ -149,11 +185,11 @@ from aniseek.view.interfaces.command import Command
 from aniseek.view.video_command import MacroCommand, PauseCommand, SaveCommand
 
 class NotificarCommand(Command):
-    def executor(self) -> None:
+    def on_press(self) -> None:
         print("Ação personalizada executada!")
 
 with FrameViewer.from_default("video.mp4") as viewer:
-    ctrl = viewer._FrameViewer__video_controller
+    ctrl = viewer.controller
 
     # Agrupar múltiplos comandos em uma macro ordenada:
     macro = MacroCommand([
@@ -170,7 +206,25 @@ with FrameViewer.from_default("video.mp4") as viewer:
         viewer.show(ret, frame)
 ```
 
-### 6. Configuração Global Centralizada (`config`)
+### 8. Gerenciador de Teclado Personalizado (`InputHandler`)
+
+```python
+from aniseek.view import FrameViewer
+from aniseek.view.interfaces.input import InputHandler
+
+class MyCustomKeyReader(InputHandler):
+    def get_code(self, delay: int) -> int:
+        # Lê a tecla da sua própria biblioteca ou hardware:
+        # Retorna o código numérico da tecla ou -1 se timeout.
+        return -1
+
+with FrameViewer.from_default("video.mp4", key_reader=MyCustomKeyReader) as viewer:
+    while not viewer.quit():
+        ret, frame = viewer.read()
+        viewer.show(ret, frame)
+```
+
+### 9. Configuração Global Centralizada (`config`)
 
 O `aniseek` expõe um singleton global `config` para ajustar buffers, tempos de repetição de teclas e níveis de log:
 
@@ -220,10 +274,24 @@ Todos os comandos de navegação possuem suporte nativo ao **`HoldTimer`**:
 | **`Home`** / **`End`** | — | **Início / Fim** | Salta para o primeiro ou último frame da seção atual. |
 | **`v`** | — | **Toggle Preview** | Alterna entre o modo de edição e o modo preview (*Rough Cut*). |
 | **`n`** | — | **Próximo Vídeo** | Avança para o início do próximo vídeo da `Playlist` (sentido forward). |
-| **`n`** / **`N`** | `Ctrl` (pynput) / `Shift` ou `N` (OpenCV) | **Próximo Vídeo (Fim)** | Salta para o fim do próximo vídeo com pré-aquecimento de buffer e inicia em rewind. |
+| **`n`** / **`N`** | `Ctrl` (pynput) / `Shift` ou `N` (OpenCV) | **Próximo Vídeo (Fim)** | Salta para o final do próximo vídeo com pré-aquecimento de buffer e inicia em rewind. |
 | **`p`** | — | **Vídeo Anterior** | Retorna para o início do vídeo anterior da `Playlist` (sentido forward). |
-| **`p`** / **`P`** | `Ctrl` (pynput) / `Shift` ou `P` (OpenCV) | **Vídeo Anterior (Fim)** | Salta para o fim do vídeo anterior com pré-aquecimento de buffer e inicia em rewind. |
+| **`p`** / **`P`** | `Ctrl` (pynput) / `Shift` ou `P` (OpenCV) | **Vídeo Anterior (Fim)** | Salta para o final do vídeo anterior com pré-aquecimento de buffer e inicia em rewind. |
 | **`q`** | — | **Sair** | Encerra o visualizador de forma limpa. |
+
+---
+
+## 🏛️ Interfaces Principais
+
+O `aniseek` segue o princípio de segregação de interfaces e inversão de dependência:
+
+| Interface | Módulo | Papel | Implementações Nativas |
+| :--- | :--- | :--- | :--- |
+| **`IFrameSource`** | `aniseek.core.interfaces.source` | Contrato de decodificação e fatiamento temporal de frames. | `OpenCVVideoSource`, `PyAVVideoSource`, `ImageSource` |
+| **`IFrameDisplay`** | `aniseek.view.interfaces.display` | Contrato de renderização e ciclo de vida de janelas. | `CV2Display`, `NullDisplay` |
+| **`InputHandler`** | `aniseek.view.interfaces.input` | Contrato para leitura e captura de eventos de teclado. | `PynputKeyReader`, `CV2KeyReader` |
+| **`Command`** | `aniseek.view.interfaces.command` | Contrato para ações disparadas por atalhos e estados de botão (`PRESS`, `HOLD`, `RELEASE`). | `ProceedCommand`, `RewindCommand`, `SaveCommand`, etc. |
+| **`IMemento`** | `aniseek.editing.interfaces.memento` | Contrato para captura e restauração de estados de edição (Undo). | `TrashMemento`, `SectionMemento` |
 
 ---
 
@@ -233,5 +301,5 @@ Para aprofundar-se na arquitetura e nas APIs detalhadas:
 
 - 🏛️ [**Arquitetura do Sistema (`docs/architecture.md`)**](docs/architecture.md): Visão detalhada das camadas `core`, `editing` e `view`, sistema servant/master, singleton `config` e política de logs.
 - 📖 [**Leitores de Vídeo (`docs/readers.md`)**](docs/readers.md): Guia completo de `BaseVideoReader`, `ForwardReader`, `ReverseReader` e `VideoReader`.
-- 🖼️ [**Visualizador e Edição (`docs/viewer.md`)**](docs/viewer.md): Guia do `FrameViewer`, `HoldTimer`, ciclo de vida de botões, comandos e `MacroCommand`.
-- 🔌 [**Fontes e Backends (`docs/sources.md`)**](docs/sources.md): Detalhes de `IFrameSource`, `OpenCVVideoSource`, `ImageSource` e `SourceRegistry`.
+- 🖼️ [**Visualizador e Edição (`docs/viewer.md`)**](docs/viewer.md): Guia do `FrameViewer`, `IFrameDisplay`, `InputHandler`, `HoldTimer`, comandos e `MacroCommand`.
+- 🔌 [**Fontes e Backends (`docs/sources.md`)**](docs/sources.md): Detalhes de `IFrameSource`, `OpenCVVideoSource`, `PyAVVideoSource`, `ImageSource` e `SourceRegistry`.
