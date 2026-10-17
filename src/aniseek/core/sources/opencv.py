@@ -28,6 +28,9 @@ class OpenCVVideoSource(IFrameSource):
         self._frame_count = int(self.cap.get(cv2.CAP_PROP_FRAME_COUNT))
         detected_fps = float(self.cap.get(cv2.CAP_PROP_FPS) or 0.0)
         self._fps = float(fps) if fps is not None and fps > 0.0 else detected_fps
+        width = int(self.cap.get(cv2.CAP_PROP_FRAME_WIDTH) or 0)
+        height = int(self.cap.get(cv2.CAP_PROP_FRAME_HEIGHT) or 0)
+        self._size = (width, height)
         self.buffersize = max(1, buffersize)
         self._keyframe_indices: list[int] | None = None
         self._callback: Callable[[int, int], None] = lambda old, new: None
@@ -54,6 +57,11 @@ class OpenCVVideoSource(IFrameSource):
     def fps(self) -> float:
         """Frames per second of the video."""
         return self._fps
+
+    @property
+    def size(self) -> tuple[int, int]:
+        """Video frame dimensions as (width, height) in pixels."""
+        return self._size
 
     def seek(self, frame_id: int) -> None:
         """Position the cursor at the specified frame ID.

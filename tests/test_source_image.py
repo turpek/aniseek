@@ -33,6 +33,7 @@ def test_image_source_empty_directory(tmp_path):
 
     assert source.frame_count == 0
     assert source.fps == 24.0
+    assert source.size == (0, 0)
     assert source.is_opened() is True
 
     ret, frame = source.read()
@@ -60,6 +61,7 @@ def test_image_source_reads_and_orders_images(tmp_path):
 
     assert source.frame_count == 3
     assert source.fps == 30.0
+    assert source.size == (10, 10)
 
     ret0, frame0 = source.read()
     assert ret0 is True

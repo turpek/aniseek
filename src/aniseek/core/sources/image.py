@@ -42,6 +42,7 @@ class ImageSource(IFrameSource):
         self.buffersize = max(1, buffersize)
         self._cursor = 0
         self._is_opened = True
+        self._size: tuple[int, int] | None = None
 
     @property
     def frame_count(self) -> int:
@@ -52,6 +53,21 @@ class ImageSource(IFrameSource):
     def fps(self) -> float:
         """Configured frames per second of the image source."""
         return self._fps
+
+    @property
+    def size(self) -> tuple[int, int]:
+        """Image dimensions as (width, height) in pixels."""
+        if self._size is None:
+            if self._image_paths:
+                img = cv2.imread(str(self._image_paths[0]))
+                if img is not None:
+                    h, w = img.shape[:2]
+                    self._size = (w, h)
+                else:
+                    self._size = (0, 0)
+            else:
+                self._size = (0, 0)
+        return self._size
 
     def seek(self, frame_id: int) -> None:
         """Position the cursor at the specified frame ID.

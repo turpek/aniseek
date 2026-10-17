@@ -397,3 +397,8 @@ def test_frame_viewer_custom_title_formatter(mycap, creating_window):
         assert len(received_contexts) >= 1
         assert received_contexts[-1].frame_id == 0
         viewer.join()
+
+
+def test_frame_viewer_size_property(myvideo):
+    """Verifica se a propriedade size do FrameViewer expõe as dimensões do vídeo."""
+    assert myvideo.size == (640, 480)

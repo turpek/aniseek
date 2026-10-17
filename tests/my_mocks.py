@@ -20,6 +20,13 @@ class MyVideoCapture(IFrameSource):
     def fps(self) -> float:
         return 24.0
 
+    @property
+    def size(self) -> tuple[int, int]:
+        if self.frames and isinstance(self.frames[0], np.ndarray):
+            h, w = self.frames[0].shape[:2]
+            return (w, h)
+        return (640, 480)
+
     def seek(self, frame_id: int) -> None:
         self.index = frame_id
 
@@ -60,6 +67,10 @@ class MyVideoCapture(IFrameSource):
             return self.index
         elif cv2.CAP_PROP_FPS == flag:
             return 24.0
+        elif cv2.CAP_PROP_FRAME_WIDTH == flag:
+            return 640
+        elif cv2.CAP_PROP_FRAME_HEIGHT == flag:
+            return 480
         return False
 
     def isOpened(self) -> bool:
