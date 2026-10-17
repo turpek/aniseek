@@ -5,6 +5,7 @@ description = "Motor inteligente para busca, navegação e leitura precisa de fr
 readme = "README.md"
 requires-python = ">=3.12"
 dependencies = [
+    "av>=19.0.1",
     "loguru>=0.7.3",
     "numpy>=2.0.0",
     "opencv-python>=4.10.0",
