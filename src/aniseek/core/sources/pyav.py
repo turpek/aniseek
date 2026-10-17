@@ -1,15 +1,99 @@
 from __future__ import annotations
 
-import bisect
+from collections import OrderedDict
 from collections.abc import Callable, Iterator
 from pathlib import Path
 
 import av
-from loguru import logger
 from numpy import ndarray
 
 from aniseek.core.interfaces.source import IFrameSource
 from aniseek.core.keyframes import extract_keyframe_indices
+
+
+class PyAVBuffer:
+    """Low-level decoding buffer managing PyAV streams and cached VideoFrames."""
+
+    def __init__(
+        self,
+        container: av.container.InputContainer,
+        stream: av.video.stream.VideoStream,
+        fps: float,
+        max_size: int = 60,
+    ) -> None:
+        self.container = container
+        self.stream = stream
+        self.fps = fps
+        self.time_base = float(stream.time_base)
+        self.start_offset = stream.start_time or 0
+        self.max_size = max(1, max_size)
+
+        self.cache: OrderedDict[int, av.VideoFrame] = OrderedDict()
+        self._iterator: Iterator[av.VideoFrame] | None = None
+
+    def _frame_id_of(self, frame: av.VideoFrame) -> int | None:
+        """Convert frame PTS to 0-based frame index."""
+        if frame.pts is None:
+            return None
+        return int(round((frame.pts - self.start_offset) * self.time_base * self.fps))
+
+    def _ensure_iterator(self) -> Iterator[av.VideoFrame]:
+        if self._iterator is None:
+            self._iterator = self.container.decode(self.stream)
+        return self._iterator
+
+    def seek(self, frame_id: int) -> None:
+        """Position container at nearest preceding keyframe if frame_id not cached."""
+        if frame_id in self.cache:
+            return
+
+        target_pts = self.start_offset + int(
+            round(frame_id / (self.fps * self.time_base))
+        )
+        self.container.seek(target_pts, stream=self.stream, backward=True)
+        self._iterator = self.container.decode(self.stream)
+        self.cache.clear()
+
+    def decode(self, frame_id: int) -> av.VideoFrame | None:
+        """Retrieve decoded frame from cache or advance decoding until found."""
+        if frame_id in self.cache:
+            return self.cache.pop(frame_id)
+
+        iterator = self._ensure_iterator()
+        while True:
+            try:
+                frame = next(iterator)
+            except (StopIteration, av.FFmpegError):
+                break
+
+            fid = self._frame_id_of(frame)
+            if fid is None:
+                continue
+
+            if fid == frame_id:
+                return frame
+            else:
+                self.cache[fid] = frame
+                if len(self.cache) > self.max_size:
+                    self.cache.popitem(last=False)
+
+        return None
+
+    def probe(self, frame_id: int) -> bool:
+        """Check if frame_id can be reached and decoded."""
+        if frame_id in self.cache:
+            return True
+        self.seek(frame_id)
+        frame = self.decode(frame_id)
+        if frame is not None:
+            self.cache[frame_id] = frame
+            return True
+        return False
+
+    def release(self) -> None:
+        """Clear cached frames and reset iterator."""
+        self.cache.clear()
+        self._iterator = None
 
 
 class PyAVVideoSource(IFrameSource):
@@ -61,13 +145,13 @@ class PyAVVideoSource(IFrameSource):
             self._frame_count = 0
 
         self.buffersize = max(1, buffersize)
-        self._start_offset: int = self._stream.start_time or 0
-        self._time_base: float = float(self._stream.time_base)
-
-        self._current_pos: int = 0
-        self._generator: Iterator[av.VideoFrame] | None = None
-        self._pending_frame: av.VideoFrame | None = None
-        self._eof: bool = False
+        self._cursor = 0
+        self._buffer = PyAVBuffer(
+            self._container,
+            self._stream,
+            self._fps,
+            max_size=max(60, self.buffersize * 2),
+        )
 
         self._keyframe_indices: list[int] | None = None
         self._callback: Callable[[int, int], None] = lambda old, new: None
@@ -110,43 +194,8 @@ class PyAVVideoSource(IFrameSource):
         if frame_id < 0:
             frame_id = 0
 
-        if frame_id == self._current_pos and (
-            self._pending_frame is not None or not self._eof
-        ):
-            return
-
-        # Fast forward if target is very close ahead
-        if 0 < frame_id - self._current_pos <= 5 and not self._eof:
-            skip_count = frame_id - self._current_pos
-            for _ in range(skip_count):
-                if not self.grab():
-                    break
-            return
-
-        target_pts = self._start_offset + int(
-            round(frame_id / (self._fps * self._time_base))
-        )
-        self._container.seek(target_pts, stream=self._stream, backward=True)
-        self._generator = self._container.decode(self._stream)
-        self._pending_frame = None
-        self._eof = False
-
-        while True:
-            frame = self._decode_next()
-            if frame is None:
-                self._current_pos = frame_id
-                return
-
-            if frame.pts is not None:
-                pts_rel = frame.pts - self._start_offset
-                f_idx = int(round(pts_rel * self._time_base * self._fps))
-            else:
-                f_idx = self._current_pos
-
-            if f_idx >= frame_id:
-                self._pending_frame = frame
-                self._current_pos = f_idx
-                break
+        self._cursor = frame_id
+        self._buffer.seek(frame_id)
 
     def read(self) -> tuple[bool, ndarray | None]:
         """Read and decode the next frame.
@@ -157,20 +206,13 @@ class PyAVVideoSource(IFrameSource):
         if not self.is_opened():
             return False, None
 
-        if self._pending_frame is not None:
-            frame = self._pending_frame
-            self._pending_frame = None
-            self._current_pos += 1
-            arr = frame.to_ndarray(format="bgr24")
-            return True, arr
-
-        frame = self._decode_next()
+        frame = self._buffer.decode(self._cursor)
         if frame is not None:
-            self._current_pos += 1
+            self._cursor += 1
             arr = frame.to_ndarray(format="bgr24")
             return True, arr
 
-        self._handle_read_failure()
+        self._handle_read_failure(self._cursor)
         return False, None
 
     def grab(self) -> bool:
@@ -182,220 +224,19 @@ class PyAVVideoSource(IFrameSource):
         if not self.is_opened():
             return False
 
-        if self._pending_frame is not None:
-            self._pending_frame = None
-            self._current_pos += 1
-            return True
-
-        frame = self._decode_next()
+        frame = self._buffer.decode(self._cursor)
         if frame is not None:
-            self._current_pos += 1
+            self._cursor += 1
             return True
 
-        self._handle_read_failure()
+        self._handle_read_failure(self._cursor)
         return False
 
-    def _get_generator(self) -> Iterator[av.VideoFrame]:
-        if self._generator is None and self._container is not None:
-            self._generator = self._container.decode(self._stream)
-        if self._generator is None:
-            return iter([])
-        return self._generator
-
-    def _decode_next(self) -> av.VideoFrame | None:
-        if self._eof or self._container is None:
-            return None
-        try:
-            return next(self._get_generator())
-        except (StopIteration, av.AVError):
-            self._eof = True
-            return None
-
-    def _probe_frame(self, target_frame: int) -> bool:
-        """Test if target_frame is decodable in the stream."""
-        if self._container is None or target_frame < 0:
+    def probe(self, frame_id: int) -> bool:
+        """Test if frame_id can be positioned and grabbed without failure."""
+        if not self.is_opened() or frame_id < 0:
             return False
-        try:
-            target_pts = self._start_offset + int(
-                round(target_frame / (self._fps * self._time_base))
-            )
-            self._container.seek(target_pts, stream=self._stream, backward=True)
-            for frame in self._container.decode(self._stream):
-                if frame.pts is not None:
-                    pts_rel = frame.pts - self._start_offset
-                    f_idx = int(round(pts_rel * self._time_base * self._fps))
-                else:
-                    f_idx = target_frame
-                if f_idx >= target_frame:
-                    return True
-            return False
-        except Exception:
-            return False
-
-    def _handle_read_failure(self, probe_window: int = 5) -> None:
-        """Handle unexpected read or grab failure with tail probe and EOF resolution."""
-        if self._container is None or self._frame_count <= 0:
-            return
-
-        current_pos = self._current_pos
-        if current_pos >= self._frame_count:
-            return
-
-        # 1. Reverse tail probe se a falha ocorreu proximo a cauda do stream
-        if current_pos >= self._frame_count - probe_window:
-            for target in range(current_pos - 1, max(-1, current_pos - probe_window - 1), -1):
-                if self._probe_frame(target):
-                    new_count = target + 1
-                    logger.info(
-                        f"Adjusted frame count from nominal {self._frame_count} "
-                        f"to actual decodable {new_count} via tail probe."
-                    )
-                    old_count = self._frame_count
-                    self._frame_count = new_count
-                    self.on_frame_count_changed(old_count, new_count)
-                    return
-            self._find_true_frame_count()
-            return
-
-        # 2. Tentativas exponenciais 2^N para N de 0 a 4 (passos 1, 2, 4, 8, 16)
-        last_failed = current_pos
-        for n in range(5):
-            target = current_pos + (1 << n)
-            if target >= self._frame_count:
-                break
-            if self._probe_frame(target):
-                logger.warning(
-                    f"Corrupted frame detected at index {current_pos}; "
-                    f"recovered decodable stream at index {target}."
-                )
-                self.seek(target + 1)
-                return
-            last_failed = target
-
-        # 3. Se o video possui keyframes, busca galopante nos keyframes a frente
-        kfs = self.get_keyframes()
-        if kfs:
-            start_idx = bisect.bisect_right(kfs, last_failed)
-            step_kf = 1
-            curr_idx = start_idx
-            b_low = start_idx
-            b_high = None
-
-            while curr_idx < len(kfs) and kfs[curr_idx] < self._frame_count:
-                target = kfs[curr_idx]
-                if self._probe_frame(target):
-                    b_high = curr_idx
-                    break
-                last_failed = target
-                b_low = curr_idx + 1
-                curr_idx = start_idx + step_kf
-                step_kf *= 2
-
-            if b_high is not None:
-                low = b_low
-                high = b_high
-                best_kf_idx = b_high
-                while low <= high:
-                    mid = (low + high) // 2
-                    if self._probe_frame(kfs[mid]):
-                        best_kf_idx = mid
-                        high = mid - 1
-                    else:
-                        low = mid + 1
-                first_valid_kf = kfs[best_kf_idx]
-                logger.warning(
-                    f"Stream hole detected starting at index {current_pos}; "
-                    f"recovered decodable stream at keyframe {first_valid_kf}."
-                )
-                self.seek(first_valid_kf + 1)
-                return
-
-        # 4. Nenhum frame decodifica ate o fim: arquivo acabou ali
-        self._find_true_frame_count()
-
-    def _find_true_frame_count(self) -> int:
-        """Locate the exact last decodable frame using keyframe candidates or binary search."""
-        if self._container is None or self._frame_count <= 0:
-            return self._frame_count
-
-        kfs = self.get_keyframes()
-        if kfs:
-            candidates = [k for k in kfs if k < self._frame_count]
-            if candidates:
-                low = 0
-                high = len(candidates) - 1
-                last_good_kf = -1
-                while low <= high:
-                    mid = (low + high) // 2
-                    if self._probe_frame(candidates[mid]):
-                        last_good_kf = candidates[mid]
-                        low = mid + 1
-                    else:
-                        high = mid - 1
-
-                if last_good_kf >= 0:
-                    pts = self._start_offset + int(
-                        round(last_good_kf / (self._fps * self._time_base))
-                    )
-                    self._container.seek(pts, stream=self._stream, backward=True)
-                    last_idx = last_good_kf
-                    for frame in self._container.decode(self._stream):
-                        if frame.pts is not None:
-                            pts_rel = frame.pts - self._start_offset
-                            idx = int(round(pts_rel * self._time_base * self._fps))
-                        else:
-                            idx = last_idx + 1
-                        last_idx = idx
-
-                    new_count = last_idx + 1
-                    if 0 < new_count != self._frame_count:
-                        logger.info(
-                            f"Adjusted frame count from nominal {self._frame_count} "
-                            f"to actual decodable {new_count} via keyframe candidates."
-                        )
-                        old_count = self._frame_count
-                        self._frame_count = new_count
-                        self.on_frame_count_changed(old_count, new_count)
-                    return self._frame_count
-
-        # Fallback sem keyframes: busca binaria
-        low = 0
-        high = self._frame_count - 1
-        last_good = -1
-        while low <= high:
-            mid = (low + high) // 2
-            if self._probe_frame(mid):
-                last_good = mid
-                low = mid + 1
-            else:
-                high = mid - 1
-
-        if last_good >= 0:
-            new_count = last_good + 1
-            if 0 < new_count != self._frame_count:
-                logger.info(
-                    f"Adjusted frame count from nominal {self._frame_count} "
-                    f"to actual decodable {new_count} via binary search."
-                )
-                old_count = self._frame_count
-                self._frame_count = new_count
-                self.on_frame_count_changed(old_count, new_count)
-
-        return self._frame_count
-
-    def validate_frame_count(self) -> int:
-        """Validate and adjust frame_count on-demand via binary search.
-
-        Returns:
-            int: The actual decodable frame count.
-        """
-        if self._container is None or self._frame_count <= 0:
-            return self._frame_count
-
-        if self._probe_frame(self._frame_count - 1):
-            return self._frame_count
-
-        return self._find_true_frame_count()
+        return self._buffer.probe(frame_id)
 
     def is_opened(self) -> bool:
         """Check if the video source is currently open.
@@ -408,12 +249,11 @@ class PyAVVideoSource(IFrameSource):
     def release(self) -> None:
         """Release underlying video capture and decoding resources."""
         self._callback = lambda old, new: None
+        if self._buffer is not None:
+            self._buffer.release()
         if self._container is not None:
             self._container.close()
             self._container = None
-        self._generator = None
-        self._pending_frame = None
-        self._eof = True
 
     def __enter__(self) -> PyAVVideoSource:
         return self
