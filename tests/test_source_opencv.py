@@ -39,6 +39,7 @@ def test_opencv_source_read_and_seek(tmp_path, monkeypatch):
 
     assert source.frame_count == 500
     assert source.fps == 24.0
+    assert source.size == (640, 480)
 
     ret, frame = source.read()
     assert ret is True

@@ -31,6 +31,11 @@ class IFrameSource(ABC):
         """Frame rate of the video source in frames per second."""
         ...
 
+    @property
+    def size(self) -> tuple[int, int]:
+        """Video frame dimensions as (width, height) in pixels."""
+        return (0, 0)
+
     @abstractmethod
     def seek(self, frame_id: int) -> None:
         """Position cursor at frame_id.

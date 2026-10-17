@@ -55,6 +55,7 @@ def test_pyav_source_reads_and_seeks(synthetic_video_path: Path):
 
     assert source.frame_count == 20
     assert abs(source.fps - 24.0) < 0.1
+    assert source.size == (64, 48)
     assert source.is_opened() is True
 
     ret, frame = source.read()

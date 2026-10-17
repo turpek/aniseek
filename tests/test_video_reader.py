@@ -449,3 +449,17 @@ def test_video_reader_close_purges_buffers_and_breaks_circular_references(tmp_pa
     assert w_source() is None
     assert w_buf_r() is None
     assert w_buf_l() is None
+
+
+@pytest.mark.parametrize(
+    "reader_cls",
+    [ForwardReader, ReverseReader, VideoReader],
+    ids=["forward_reader", "reverse_reader", "video_reader"],
+)
+def test_video_readers_expose_source_size(synthetic_cap, reader_cls):
+    """Valida se leitores de vídeo expõem a propriedade size da fonte."""
+    reader = reader_cls(synthetic_cap)
+    size = reader.size
+    reader.close()
+
+    assert size == (640, 480)

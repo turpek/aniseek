@@ -144,6 +144,10 @@ class PyAVVideoSource(IFrameSource):
         else:
             self._frame_count = 0
 
+        width = int(self._stream.width or 0)
+        height = int(self._stream.height or 0)
+        self._size = (width, height)
+
         self.buffersize = max(1, buffersize)
         self._cursor = 0
         self._buffer = PyAVBuffer(
@@ -179,6 +183,11 @@ class PyAVVideoSource(IFrameSource):
     def fps(self) -> float:
         """Frames per second of the video."""
         return self._fps
+
+    @property
+    def size(self) -> tuple[int, int]:
+        """Video frame dimensions as (width, height) in pixels."""
+        return self._size
 
     def seek(self, frame_id: int) -> None:
         """Position the cursor at the specified frame ID.

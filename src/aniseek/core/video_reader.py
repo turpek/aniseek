@@ -65,6 +65,11 @@ class BaseVideoReader(ABC):
         return len(self.frame_ids)
 
     @property
+    def size(self) -> tuple[int, int]:
+        """Video frame dimensions as (width, height) in pixels."""
+        return self.source.size
+
+    @property
     @abstractmethod
     def is_task_complete(self) -> bool:
         """Indica se a leitura alcançou o término do fatiamento configurado."""

@@ -60,6 +60,10 @@ class MyVideoCapture(IFrameSource):
             return self.index
         elif cv2.CAP_PROP_FPS == flag:
             return 24.0
+        elif cv2.CAP_PROP_FRAME_WIDTH == flag:
+            return 640
+        elif cv2.CAP_PROP_FRAME_HEIGHT == flag:
+            return 480
         return False
 
     def isOpened(self) -> bool:

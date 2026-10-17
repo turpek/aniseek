@@ -278,6 +278,15 @@ class FrameViewer:
     def frame_id(self):
         return self._video_controller.frame_id
 
+    @property
+    def size(self) -> tuple[int, int]:
+        """Video frame dimensions as (width, height) in pixels."""
+        if self._source is not None:
+            return self._source.size
+        if self._video_manager and self._video_manager.source:
+            return self._video_manager.source.size
+        return (0, 0)
+
     def set(self, frame_id) -> None:
         """Define o vídeo para o frame especificado pelo índice 'frame_id'.
 
