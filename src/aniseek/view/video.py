@@ -261,6 +261,14 @@ class FrameViewer:
     def video_controller(self) -> VideoController:
         return self._video_controller
 
+    @property
+    def controller(self) -> VideoController:
+        return self._video_controller
+
+    @property
+    def video_manager(self) -> VideoManager:
+        return self._video_manager
+
     # Backward compatibility alias
     @property
     def _FrameViewer__video_controller(self) -> VideoController:
