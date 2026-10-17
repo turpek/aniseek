@@ -1,6 +1,6 @@
 from aniseek.core.sources.image import ImageSource
 from aniseek.core.sources.opencv import OpenCVVideoSource
-from aniseek.core.sources.pyav import PyAVFormat, PyAVVideoSource
+from aniseek.core.sources.pyav import PyAVVideoSource
 from aniseek.core.sources.registry import (
     VIDEO_EXTENSIONS,
     SourceRegistry,
@@ -10,7 +10,6 @@ from aniseek.core.sources.registry import (
 __all__ = [
     "ImageSource",
     "OpenCVVideoSource",
-    "PyAVFormat",
     "PyAVVideoSource",
     "SourceRegistry",
     "VIDEO_EXTENSIONS",
