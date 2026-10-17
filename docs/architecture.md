@@ -49,6 +49,7 @@ O módulo `aniseek.core` é o coração do pacote. É completamente desacoplado 
 
 3. **Implementações Nativas de Fonte (`aniseek.core.sources`):**
    - **`OpenCVVideoSource`:** Decodificador de vídeos via OpenCV com TTFF instantâneo (*lazy*), reverse tail probe e busca binária $O(\log N)$ tolerante a frames corrompidos.
+   - **`PyAVVideoSource`:** Decodificador moderno de alta performance via PyAV/FFmpeg com suporte nativo a AV1 10-bit (`libdav1d`), HEVC e H.264 Hi10P, cache FIFO de baixo consumo de heap (~0.3 MB) e busca binária rápida para fim de arquivo (EOF).
    - **`ImageSource`:** Decodificador de sequências de imagens em diretório (`.png`, `.jpg`, `.jpeg`, `.webp`, `.bmp`).
    - **Indexador de Keyframes (`aniseek.core.keyframes`):** Parser binário puro de EBML / Matroska Cues para extração de keyframes em milissegundos sem invocar ferramentas externas.
 
@@ -107,29 +108,35 @@ O módulo `aniseek.editing` gerencia o ciclo de vida de cortes, histórico de de
 
 ## 3. Camada `view` — Interface, Comandos e Visualização
 
-O módulo `aniseek.view` contém o visualizador interativo em OpenCV, a captura de teclado e a arquitetura de comandos desacoplados.
+O módulo `aniseek.view` contém o visualizador interativo, o desacoplamento de exibição gráfica (`IFrameDisplay`), a captura de teclado (`InputHandler`) e a arquitetura de comandos desacoplados (`Command` & `Invoker`).
 
 ### Componentes Principais:
 
 1. **`FrameViewer` (`aniseek.view.video`):**
-   - Visualizador de alto nível em janela nativa OpenCV (`namedWindow`, `imshow`).
+   - Fachada visual de alto nível para inspeção, navegação e corte interativo.
+   - Totalmente desacoplada de dependências diretas de HighGUI (delega renderização a `IFrameDisplay`).
    - Loop governado pelo método não-bloqueante `while not viewer.quit():`.
    - Permite injeção de seções (`dict`, `.json`, `SectionManager`), atalhos personalizados (`shortcuts={...}`) e vinculação estrita de comandos (`viewer.bind(key, command)`).
 
-2. **Subsistema de Entrada (`aniseek.view.input_handler`):**
-   - **`InputHandler`:** Interface base com máscaras de modificadores (`CTRL_BIT = 0x100`, `SHIFT_BIT = 0x200`, `ALT_BIT = 0x400`).
-   - **`PynputKeyReader` (Padrão):** Captura eventos via hooks do sistema operacional (`pynput.keyboard.Listener`), interceptando confiavelmente `Ctrl`, `Shift` e `Alt`.
+2. **Renderizador e Ciclo de Janela (`IFrameDisplay` em `aniseek.view.interfaces.display`):**
+   - **`IFrameDisplay`:** Contrato abstrato que padroniza `create_window()`, `show_frame()`, `set_title()` e `close()`.
+   - **`CV2Display`:** Implementação padrão OpenCV HighGUI com títulos limpos e identificador `"aniseek"`.
+   - **`NullDisplay`:** Implementação *headless* em memória para testes unitários, automação em lote, CI/CD e servidores sem servidor gráfico (X11/Wayland).
+
+3. **Subsistema de Entrada (`aniseek.view.input_handler`):**
+   - **`InputHandler`:** Interface base com máscaras de modificadores (`CTRL_BIT = 0x100`, `SHIFT_BIT = 0x200`, `ALT_BIT = 0x400`) e constantes de teclas de navegação.
+   - **`PynputKeyReader` (Padrão):** Captura eventos via hooks do sistema operacional (`pynput.keyboard.Listener` em daemon thread), interceptando confiavelmente `Ctrl`, `Shift`, `Alt` e Numpad.
    - **`CV2KeyReader` (Fallback):** Captura eventos via `cv2.waitKeyEx()`.
 
-3. **Mapeamento de Atalhos (`aniseek.view.shortcuts`):**
+4. **Mapeamento de Atalhos (`aniseek.view.shortcuts`):**
    - `PYNPUT_SHORTCUTS`: Mapeamento otimizado para teclado de sistema com modificadores `Ctrl` e teclas sem modificador.
    - `CV2_SHORTCUTS`: Mapeamento adaptado para o backend OpenCV com suporte a `Shift` e maiúsculas.
 
-4. **Padrão Command e Ciclo de Vida (`aniseek.view.video_command`):**
+5. **Padrão Command e Ciclo de Vida (`aniseek.view.video_command`):**
    - Suporte nativo ao ciclo de vida via `ButtonState.PRESS`, `ButtonState.HOLD` e `ButtonState.RELEASE`.
    - Composição de `HoldTimer` para permitir avanço de 1 frame único em clique curto e aceleração contínua sem saltos acidentais ao manter pressionado.
    - `Invoker`: Despacha comandos associados a teclas ou identificadores.
-   - Comandos Concretos: `ProceedCommand`, `RewindCommand`, `PauseCommand`, `RemoveFrameCommand`, `UndoFrameCommand`, `SplitSectionCommand`, `JoinSectionCommand`, `SaveCommand`, `NextVideoCommand`, `PrevVideoCommand`, `NextVideoEndCommand`, `PrevVideoEndCommand`, etc.
+   - Comandos Concretos: `ProceedCommand`, `RewindCommand`, `DynamicProceedCommand`, `DynamicRewindCommand`, `PauseCommand`, `PauseDelayCommand`, `IncreaseSpeedCommand`, `DecreaseSpeedCommand`, `RestoreDelayCommand`, `RemoveFrameCommand`, `UndoFrameCommand`, `SplitSectionCommand`, `JoinSectionCommand`, `RemoveSectionCommand`, `UndoSectionCommand`, `JumpSectionStartCommand`, `JumpSectionEndCommand`, `TogglePreviewCommand`, `SaveCommand`, `NextVideoCommand`, `PrevVideoCommand`, `NextVideoEndCommand`, `PrevVideoEndCommand`, `QuitCommand`.
    - **`MacroCommand`:** Implementa o padrão Composite para agrupar e executar sequências ordenadas de múltiplos comandos.
 
 ---

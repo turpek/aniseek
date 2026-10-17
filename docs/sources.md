@@ -84,7 +84,30 @@ with OpenCVVideoSource("meu_video.mp4") as src:
 
 ---
 
-### B. `ImageSource` (`aniseek.core.sources.image`)
+### B. `PyAVVideoSource` (`aniseek.core.sources.pyav`)
+
+Backend moderno de alta performance baseado em **PyAV** e **FFmpeg** / **libdav1d**, projetado para superar as limitações do OpenCV com codecs avançados e perfis de cor modernos.
+
+```python
+from aniseek.core.sources import PyAVVideoSource
+
+source = PyAVVideoSource("anime_10bit.mkv")
+print(f"Total de frames: {source.frame_count}")
+print(f"FPS: {source.fps}")
+
+with PyAVVideoSource("anime_10bit.mkv") as src:
+    success, frame = src.read()
+```
+
+#### Características e Diferenciais:
+- **Suporte Nativo a Codecs Modernos e 10-bit:** Decodifica com precisão **AV1 10-bit** (`yuv420p10le` via `libdav1d`), **HEVC/H.265** e perfis avançados de H.264 (Hi10P) onde o OpenCV frequentemente falha ou gera frames corrompidos.
+- **Buffer FIFO com Memória Reduzida (`PyAVBuffer`):** Mantém um cache interno deslizante FIFO (`OrderedDict`) de frames decodificados pelo demuxer do FFmpeg, com consumo de heap extremamente baixo (~0.3 MB de pico).
+- **Busca Binária Precisa para Fim de Vídeo (EOF):** Realiza verificação rápida pelo fim real da stream (`validate_frame_count` / `_find_true_frame_count`) através de busca binária em keyframes e sondagem de cauda, eliminando leituras inválidas causadas por metadados truncados do container.
+- **Implementação Estrita de `IFrameSource`:** Totalmente compatível como backend *drop-in* para `VideoReader`, `ForwardReader`, `ReverseReader` e `FrameViewer`.
+
+---
+
+### C. `ImageSource` (`aniseek.core.sources.image`)
 
 Backend nativo para leitura sequencial de diretórios contendo imagens numeradas ou nomeadas.
 
@@ -109,20 +132,29 @@ print(f"FPS configurado: {source.fps}")
 
 O **`SourceRegistry`** (`aniseek.core.sources.registry`) é o singleton responsável por registrar as classes padrão de vídeo e imagem e resolver caminhos automaticamente.
 
+### Backends Disponíveis no Registro:
+
+O dicionário `AVAILABLE_VIDEO_BACKENDS` expõe os backends suportados para seleção direta por string:
+- `"opencv"`: `OpenCVVideoSource` (padrão)
+- `"pyav"`: `PyAVVideoSource`
+
 ### A. Resolução Inteligente (`create_source`)
 
-O método `source_registry.create_source(path)` inspeciona o caminho fornecido:
+O método `source_registry.create_source(path, buffersize=None, backend=None)` inspeciona o caminho fornecido e o parâmetro `backend`:
 - Se for **diretório** (`p.is_dir()`): instancia `ImageSource`.
-- Se tiver **extensão de vídeo** (`.mp4`, `.mkv`, `.avi`, etc.): instancia `OpenCVVideoSource`.
+- Se tiver **extensão de vídeo** (`.mp4`, `.mkv`, `.avi`, etc.): instancia o backend selecionado (`OpenCVVideoSource` por padrão, ou `PyAVVideoSource` se especificado).
 - Se tiver extensão não suportada (ex: `.pdf`, `.txt`): levanta `ValueError`.
 
 ```python
 from aniseek.core.sources import source_registry
 
-# Retorna uma instância de OpenCVVideoSource:
+# Retorna uma instância de OpenCVVideoSource (padrão):
 video_src = source_registry.create_source("video.mp4")
 
-# Retorna uma instância de ImageSource:
+# Retorna uma instância de PyAVVideoSource via parâmetro backend:
+pyav_src = source_registry.create_source("anime.mkv", backend="pyav")
+
+# Retorna uma instância de ImageSource para diretórios:
 img_src = source_registry.create_source("pasta_frames/")
 ```
 
@@ -130,13 +162,14 @@ img_src = source_registry.create_source("pasta_frames/")
 
 ### B. Alternância Temporária via Context Manager (`use()`)
 
-Para alternar backends temporariamente sem afetar o restante da aplicação:
+Para alternar backends temporariamente sem afetar o restante da aplicação (aceita tanto classes quanto strings como `"pyav"` ou `"opencv"`):
 
 ```python
 from aniseek.core.sources import source_registry
-from minha_lib import PyAVVideoSource  # Classe customizada que herda de IFrameSource
+from aniseek import VideoReader
 
-with source_registry.use(video=PyAVVideoSource):
+# Alterna para PyAV passando string ou classe:
+with source_registry.use(video="pyav"):
     # Dentro deste bloco, qualquer chamada from_default() usará PyAVVideoSource
     reader = VideoReader.from_default("video.mp4")
 

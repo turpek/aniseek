@@ -20,7 +20,9 @@ FrameViewer(
     shortcuts: dict[int, str] | None = None,
     buffersize: int = 60,
     key_reader: type[InputHandler] = PynputKeyReader,
+    display: type[IFrameDisplay] | str = CV2Display,
     log: bool = False,
+    title_formatter: TitleFormatter | None = None,
 )
 ```
 
@@ -34,7 +36,26 @@ FrameViewer.from_default(
     shortcuts: dict[int, str] | None = None,
     buffersize: int = 60,
     key_reader: type[InputHandler] = PynputKeyReader,
+    display: type[IFrameDisplay] | str = CV2Display,
+    backend: type[IFrameSource] | str | None = None,
     log: bool = False,
+    title_formatter: TitleFormatter | None = None,
+)
+```
+
+### C. Assinatura de `from_playlist`:
+
+```python
+FrameViewer.from_playlist(
+    playlist: Playlist,
+    *,
+    sections: SectionManager | dict | Path | str | None = None,
+    shortcuts: dict[int, str] | None = None,
+    buffersize: int = 60,
+    key_reader: type[InputHandler] = PynputKeyReader,
+    display: type[IFrameDisplay] | str = CV2Display,
+    log: bool = False,
+    title_formatter: TitleFormatter | None = None,
 )
 ```
 
@@ -44,11 +65,15 @@ FrameViewer.from_default(
 | :--- | :--- | :--- | :--- |
 | `source` | `IFrameSource` | *Obrigatório (`__init__`)* | Instância de backend de extração de frames. |
 | `path` | `str \| Path` | *Obrigatório (`from_default`)* | Caminho para arquivo de vídeo ou diretório de imagens. |
+| `playlist` | `Playlist` | *Obrigatório (`from_playlist`)* | Instância de playlist contendo múltiplos caminhos de mídia. |
 | `sections` | `SectionManager \| dict \| Path \| str \| None` | `None` | Seções injetadas para edição (dicionário serializado, caminho JSON ou instância). |
 | `shortcuts` | `dict[int, str] \| None` | `None` | Dicionário de atalhos para estender/sobrescrever o mapeamento padrão da instância. |
 | `buffersize` | `int` | `60` | Capacidade dos buffers concorrentes em memória. |
-| `key_reader` | `type[InputHandler]` | `PynputKeyReader` | Classe responsável pela captura de eventos de teclado. |
+| `key_reader` | `type[InputHandler]` | `PynputKeyReader` | Classe responsável pela captura de eventos de teclado (`PynputKeyReader` ou `CV2KeyReader`). |
+| `display` | `type[IFrameDisplay] \| str` | `CV2Display` | Renderizador de exibição (`"opencv"`, `"cv2"`, `"null"`, `"headless"` ou subclasse de `IFrameDisplay`). |
+| `backend` | `type[IFrameSource] \| str \| None` | `None` | Backend de decodificação de vídeo (`"opencv"`, `"pyav"` ou subclasse de `IFrameSource`). |
 | `log` | `bool` | `False` | Habilita logs detalhados dos buffers concorrentes. |
+| `title_formatter`| `TitleFormatter \| None` | `None` | Função customizada para formatação da barra de título da janela. |
 
 ---
 
@@ -186,7 +211,7 @@ class NotificarCommand(Command):
         print("Vídeo pausado e seções salvas!")
 
 with FrameViewer.from_default("video.mp4") as viewer:
-    ctrl = viewer._FrameViewer__video_controller
+    ctrl = viewer.controller  # Acesso direto e limpo ao VideoController
 
     # Composição: Pausar -> Salvar -> Notificar
     macro = MacroCommand([
@@ -208,7 +233,249 @@ with FrameViewer.from_default("video.mp4") as viewer:
 
 ---
 
-## 7. Ciclo de Vida de Eventos e Repetição (`HoldTimer`)
+## 7. Renderização e Display Desacoplado (`IFrameDisplay`)
+
+O `FrameViewer` isola a camada gráfica através do contrato **`IFrameDisplay`** (`aniseek.view.interfaces.display`), permitindo alternar facilmente entre janelas nativas, execução *headless* ou engines gráficos externos.
+
+### A. Contrato da Interface (`IFrameDisplay`):
+
+```python
+from abc import ABC, abstractmethod
+from numpy import ndarray
+
+class IFrameDisplay(ABC):
+    @abstractmethod
+    def create_window(self, name: str = "aniseek", width: int = 720, height: int = 420) -> None:
+        """Cria e dimensiona a janela de exibição."""
+        ...
+
+    @abstractmethod
+    def show_frame(self, frame: ndarray) -> None:
+        """Renderiza um único frame na tela."""
+        ...
+
+    @abstractmethod
+    def set_title(self, title: str) -> None:
+        """Atualiza a barra de título da janela com metadados."""
+        ...
+
+    @abstractmethod
+    def close(self) -> None:
+        """Fecha a janela e libera recursos gráficos subjacentes."""
+        ...
+```
+
+### B. Implementações Nativas:
+
+1. **`CV2Display` (`aniseek.view.display`):**
+   - Implementação padrão via OpenCV HighGUI (`cv2.namedWindow`, `cv2.imshow`, `cv2.setWindowTitle`, `cv2.destroyWindow`).
+   - Identificador de janela limpo padronizado em `"aniseek"`.
+2. **`NullDisplay` (`aniseek.view.display`):**
+   - Implementação *headless* (no-op) em memória. Não requisita servidor X11/Wayland nem inicializa recursos gráficos.
+   - Armazena `last_frame` e `last_title` para inspeção direta.
+   - Ideal para testes unitários, automação em lote, pipelines de CI/CD e servidores sem interface gráfica.
+
+### C. Seleção por String ou Tipo:
+
+O parâmetro `display` aceita classes ou os seguintes identificadores textuais:
+- `"opencv"` ou `"cv2"`: Instancia `CV2Display` (padrão).
+- `"null"` ou `"headless"`: Instancia `NullDisplay`.
+
+```python
+from aniseek.view import FrameViewer
+
+# Execução headless completa (sem abrir janelas):
+with FrameViewer.from_default("video.mp4", display="null") as viewer:
+    while not viewer.quit():
+        ret, frame = viewer.read()
+        viewer.show(ret, frame)
+        # O frame é processado sem overhead gráfico
+```
+
+### D. Criando um Display Personalizado (ex: PyQt, Web, Pygame):
+
+```python
+from aniseek.view.interfaces.display import IFrameDisplay
+import numpy as np
+
+class WebStreamDisplay(IFrameDisplay):
+    """Exemplo de display que envia frames para um stream HTTP/WebRTC."""
+
+    def create_window(self, name: str = "aniseek", width: int = 720, height: int = 420) -> None:
+        print(f"Iniciando stream '{name}' ({width}x{height})")
+
+    def show_frame(self, frame: np.ndarray) -> None:
+        # Codifica e transmite o frame via websocket/HTTP
+        pass
+
+    def set_title(self, title: str) -> None:
+        # Envia metadados atualizados para o cliente web
+        pass
+
+    def close(self) -> None:
+        print("Finalizando stream")
+
+# Uso:
+viewer = FrameViewer.from_default("video.mp4", display=WebStreamDisplay)
+```
+
+---
+
+## 8. Subsistema de Entrada e Captura de Teclado (`InputHandler`)
+
+A recepção de eventos de teclado é gerenciada pela classe abstrata **`InputHandler`** (`aniseek.view.interfaces.input`), garantindo captura unificada de teclas e modificadores.
+
+### A. Constantes e Estrutura da Interface:
+
+```python
+class InputHandler(ABC):
+    # Máscaras de bits para identificação de modificadores combinados
+    CTRL_BIT = 0x100   # 256
+    SHIFT_BIT = 0x200  # 512
+    ALT_BIT = 0x400    # 1024
+
+    # Teclas de navegação padronizadas
+    KEY_HOME  = 0xFF50
+    KEY_LEFT  = 0xFF51
+    KEY_UP    = 0xFF52
+    KEY_RIGHT = 0xFF53
+    KEY_DOWN  = 0xFF54
+    KEY_END   = 0xFF57
+
+    @abstractmethod
+    def get_code(self, delay: int) -> int:
+        """Retorna o código numérico da tecla pressionada ou -1 se nenhuma."""
+        ...
+
+    def get_event(self, delay: int) -> tuple[int, ButtonState] | None:
+        """Retorna uma tupla (codigo_tecla, ButtonState) ou None."""
+        ...
+
+    def join(self) -> None:
+        """Encerra threads ou listeners em segundo plano de forma graciosa."""
+        ...
+```
+
+### B. Implementações Disponíveis:
+
+1. **`PynputKeyReader` (`aniseek.view.input_handler`) — Padrão:**
+   - Utiliza `pynput.keyboard.Listener` em uma thread *daemon* dedicada.
+   - Captura com precisão modificadores no nível do sistema operacional (`Ctrl`, `Shift`, `Alt`), mesmo durante cliques rápidos.
+   - Suporte inteligente a caracteres de controle ASCII (`Ctrl+a` até `Ctrl+z`), teclas especiais e teclado numérico (*Numpad*).
+   - Emite eventos estruturados com `ButtonState` (`PRESS`, `HOLD`, `RELEASE`).
+   - O método `join()` assegura liberação imediata da thread listener, prevenindo travamentos no encerramento da aplicação.
+
+2. **`CV2KeyReader` (`aniseek.view.input_handler`):**
+   - Fallback simples baseado exclusivamente em `cv2.waitKeyEx(delay)`.
+   - Útil em ambientes restritos (como contêineres Docker sem permissões de input do sistema) onde o `pynput` não possa registrar hooks.
+
+### C. Implementando um `InputHandler` Personalizado (ex: Gamepad, Rede ou Mock):
+
+```python
+from aniseek.view.interfaces.input import InputHandler
+from aniseek.view.interfaces.command import ButtonState
+
+class JoystickInputHandler(InputHandler):
+    """Handler customizado para mapear controles de gamepad/joystick."""
+
+    def __init__(self) -> None:
+        super().__init__()
+        # Inicializa driver de joystick (ex: pygame.joystick)
+
+    def get_code(self, delay: int) -> int:
+        # Retorna código simulado para o método tradicional
+        return -1
+
+    def get_event(self, delay: int) -> tuple[int, ButtonState] | None:
+        # Lê eventos do joystick e mapeia para códigos do aniseek:
+        # Exemplo: Botão 'D-Pad Right' -> (ord('d'), ButtonState.PRESS)
+        return None
+
+    def join(self) -> None:
+        # Libera recursos do driver
+        pass
+
+# Injetando no FrameViewer:
+viewer = FrameViewer.from_default("video.mp4", key_reader=JoystickInputHandler)
+```
+
+---
+
+## 9. Arquitetura de Comandos (`Command` & `Invoker`)
+
+O `aniseek` implementa o padrão **Command** desacoplado, onde cada ação do visualizador é um objeto independente que implementa a interface abstrata **`Command`** (`aniseek.view.interfaces.command`).
+
+### A. Contrato da Interface `Command`:
+
+```python
+from abc import ABC, abstractmethod
+
+class Command(ABC):
+    @abstractmethod
+    def executor(self) -> None:
+        """Executa a ação principal do comando."""
+        ...
+
+    def execute(self) -> None:
+        """Alias idiomático para executor()."""
+        self.executor()
+
+    def undo(self) -> None:
+        """Reverte a ação realizada, se suportado."""
+        ...
+
+    def on_press(self) -> None:
+        """Disparado imediatamente quando a tecla é pressionada (ButtonState.PRESS)."""
+        self.executor()
+
+    def on_hold(self) -> None:
+        """Disparado repetidamente enquanto a tecla permanece pressionada (ButtonState.HOLD)."""
+        self.executor()
+
+    def on_release(self) -> None:
+        """Disparado quando a tecla é liberada (ButtonState.RELEASE)."""
+        ...
+```
+
+### B. O Despachante `Invoker`:
+
+O `Invoker` (`viewer.command`) mantém o registro de comandos por nome e código de tecla:
+- `set_command(name_or_key, command)`: Registra um comando.
+- `executor_command(key, state: ButtonState)`: Despacha o comando chamando `on_press()`, `on_hold()` ou `on_release()` conforme o ciclo de vida da tecla.
+
+### C. Catálogo de Comandos Nativos (`aniseek.view.video_command`):
+
+| Categoria | Classe do Comando | Responsabilidade |
+| :--- | :--- | :--- |
+| **Reprodução & Navegação** | `ProceedCommand` | Avança 1 frame com `HoldTimer` para aceleração contínua suave. |
+| | `RewindCommand` | Retrocede 1 frame com `HoldTimer` para aceleração contínua suave. |
+| | `DynamicProceedCommand` | Alterna sentido para forward sem alterar pausa. |
+| | `DynamicRewindCommand` | Alterna sentido para rewind sem alterar pausa. |
+| | `PauseCommand` | Pausa total da reprodução. |
+| | `PauseDelayCommand` | Alterna pausa de delay ou retoma velocidade. |
+| | `IncreaseSpeedCommand` | Aumenta velocidade de reprodução (reduz delay entre frames). |
+| | `DecreaseSpeedCommand` | Reduz velocidade de reprodução (aumenta delay entre frames). |
+| | `RestoreDelayCommand` | Restaura a velocidade nominal padrão do vídeo. |
+| | `QuitCommand` | Sinaliza encerramento do visualizador (`quit() -> True`). |
+| **Edição & Seções** | `RemoveFrameCommand` | Envia o frame atual para a lixeira (`Trash`). |
+| | `UndoFrameCommand` | Restaura o último frame descartado da lixeira. |
+| | `NextSectionCommand` | Salta para o primeiro frame da próxima seção. |
+| | `PrevSectionCommand` | Salta para o último frame da seção anterior. |
+| | `SplitSectionCommand` | Divide a seção ativa na posição do frame atual. |
+| | `JoinSectionCommand` | Mescla a seção ativa com a seção adjacente. |
+| | `RemoveSectionCommand` | Descarta a seção ativa por inteiro. |
+| | `UndoSectionCommand` | Desfaz a última operação de edição via Memento (`Caretaker`). |
+| | `JumpSectionStartCommand`| Posiciona o cursor no início da seção atual. |
+| | `JumpSectionEndCommand` | Posiciona o cursor no fim da seção atual. |
+| | `TogglePreviewCommand` | Alterna entre modo de corte interativo e *Rough Cut Preview*. |
+| | `SaveCommand` | Persiste explicitamente as seções em arquivo JSON sidecar. |
+| **Playlist & Prefill** | `NextVideoCommand` | Avança para o início do próximo vídeo da playlist. |
+| | `PrevVideoCommand` | Retorna para o início do vídeo anterior da playlist. |
+| | `NextVideoEndCommand` | Salta para o final do próximo vídeo com pré-aquecimento de buffer. |
+| | `PrevVideoEndCommand` | Salta para o final do vídeo anterior com pré-aquecimento de buffer. |
+| **Composição** | `MacroCommand` | Executa múltiplos comandos sequencialmente em lote. |
+
+## 10. Ciclo de Vida de Eventos e Repetição (`HoldTimer`)
 
 Os comandos do `FrameViewer` suportam o ciclo de vida completo do botão via enumeração `ButtonState` (`PRESS`, `HOLD` e `RELEASE`). Para eliminar saltos acidentais de múltiplos frames no clique rápido e permitir aceleração contínua suave ao segurar uma tecla, os comandos contínuos utilizam internamente um **`HoldTimer`**:
 
@@ -236,7 +503,7 @@ config.hold_interval = 1.0 / 60
 
 ---
 
-## 8. Navegação em Playlist e Saltos Reversos com Pré-Aquecimento (Prefill)
+## 11. Navegação em Playlist e Saltos Reversos com Pré-Aquecimento (Prefill)
 
 O `FrameViewer` suporta navegação direta e reversa entre arquivos de mídia da `Playlist`:
 
@@ -252,7 +519,7 @@ O `FrameViewer` suporta navegação direta e reversa entre arquivos de mídia da
 
 ---
 
-## 9. Tabela Completa de Atalhos Padrão
+## 12. Tabela Completa de Atalhos Padrão
 
 | Tecla | Modificador | Comando | Descrição |
 | :---: | :---: | :--- | :--- |
@@ -278,3 +545,45 @@ O `FrameViewer` suporta navegação direta e reversa entre arquivos de mídia da
 | **`p`** | — | `PrevVideoCommand` | Retorna para o vídeo anterior da `Playlist` (início, reproduz em forward). |
 | **`p`** / **`P`** | `Ctrl` (pynput) / `Shift` ou `P` (OpenCV) | `PrevVideoEndCommand` | Salta para o final do vídeo anterior com pré-aquecimento de buffer e inicia em rewind. |
 | **`q`** | — | `QuitCommand` | Encerra a reprodução e fecha a janela. |
+
+---
+
+## 13. Propriedades Públicas e Customização da Barra de Título
+
+O `FrameViewer` expõe propriedades protegidas e públicas para facilitar integração programática e introspecção de estado:
+
+### A. Acesso a Subcomponentes:
+- **`viewer.controller`** (ou **`viewer.video_controller`**): Instância de `VideoController` que orquestra playlist, reprodução e seções.
+- **`viewer.video_manager`**: Instância de `VideoManager` gerenciando buffers concorrentes e decodificação em baixo nível.
+- **`viewer.display`**: Instância ativa de `IFrameDisplay` (`CV2Display`, `NullDisplay` ou customizada).
+- **`viewer.frame_id`**: Identificador numérico absoluto (0-based) do quadro renderizado no momento.
+
+### B. Customização da Barra de Título (`ViewerTitleContext`):
+
+Você pode injetar um formatador de título personalizado através do parâmetro `title_formatter` no construtor ou a qualquer momento com `viewer.set_title_formatter(formatter)`:
+
+```python
+from aniseek.view import FrameViewer, ViewerTitleContext
+
+def meu_formatador(ctx: ViewerTitleContext) -> str:
+    status = "PAUSA" if ctx.is_paused else ("<<" if ctx.is_rewind else ">>")
+    return f"Meu Player | Frame {ctx.frame_id} | Seção {ctx.section_index}/{ctx.total_sections} [{status}]"
+
+with FrameViewer.from_default("video.mp4", title_formatter=meu_formatador) as viewer:
+    while not viewer.quit():
+        ret, frame = viewer.read()
+        viewer.show(ret, frame)
+```
+
+O dataclass `ViewerTitleContext` disponibiliza os seguintes campos:
+- `frame_id: int | None` — ID absoluto do frame.
+- `relative_frame: int` — Posição relativa do frame dentro da seção ativa.
+- `section_frames: int` — Total de frames da seção ativa.
+- `section_index: int` — Índice da seção atual (1-based).
+- `total_sections: int` — Quantidade total de seções ativas.
+- `is_preview: bool` — Indica se o modo de visualização rápida (*Preview*) está ativo.
+- `is_rewind: bool` — `True` se a direção de reprodução for reversa.
+- `is_paused: bool` — `True` se o player estiver pausado.
+- `playlist_index: int | None` — Índice do vídeo ativo na playlist.
+- `playlist_total: int | None` — Total de vídeos na playlist.
+- `label: str | None` — Nome ou identificador do vídeo ativo na playlist.

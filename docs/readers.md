@@ -43,6 +43,7 @@ BaseVideoReader.from_default(
     step: int = 1,
     frames: list[int] | None = None,
     buffersize: int = 30,
+    backend: type[IFrameSource] | str | None = None,
 )
 ```
 
@@ -50,13 +51,14 @@ BaseVideoReader.from_default(
 
 | Parâmetro | Tipo | Padrão | Descrição |
 | :--- | :--- | :--- | :--- |
-| `source` | `IFrameSource` | *Obrigatório (`__init__`)* | Instância de backend de extração de frames (`OpenCVVideoSource`, `ImageSource` ou customizada). |
+| `source` | `IFrameSource` | *Obrigatório (`__init__`)* | Instância de backend de extração de frames (`OpenCVVideoSource`, `PyAVVideoSource`, `ImageSource` ou customizada). |
 | `path` | `str \| Path` | *Obrigatório (`from_default`)* | Caminho para o arquivo de vídeo ou pasta de imagens. Resolvido automaticamente pelo `SourceRegistry`. |
 | `start` | `int \| float \| str \| None` | `None` (0) | Ponto inicial: aceita índice de frame (`int`), segundos (`float`) ou timestamp (`str` ex: `"01:30"`). Omitir inicia no primeiro frame (`0`). |
 | `end` | `int \| float \| str \| None` | `None` (total) | Ponto final limite: aceita índice de frame (`int`), segundos (`float`) ou timestamp (`str` ex: `"02:45"`). Omitir lê até o último frame. |
 | `step` | `int` | `1` | Intervalo entre frames amostrados (pula intermediários via `cap.grab()`). |
 | `frames` | `list[int] \| None` | `None` | Lista explícita e arbitrária de índices de frames a decodificar. Sobrepõe `start`/`end`/`step`. |
 | `buffersize` | `int` | `30` | Capacidade máxima da fila em memória para pré-carregamento concorrente. |
+| `backend` | `type[IFrameSource] \| str \| None` | `None` | Backend de decodificação (`"opencv"`, `"pyav"` ou subclasse de `IFrameSource`). Se `None`, usa o padrão do `SourceRegistry`. |
 
 > [!TIP]
 > **Flexibilidade de Entrada com Determinismo no Core:**
@@ -219,6 +221,7 @@ VideoReader.from_default(
     frames: list[int] | None = None,
     direction: Direction | str = Direction.FORWARD,
     buffersize: int = 30,
+    backend: type[IFrameSource] | str | None = None,
 )
 ```
 
@@ -230,13 +233,16 @@ VideoReader.from_default(
 - **`reader.is_forward -> bool`**: Retorna `True` se o sentido atual for avanço.
 - **`reader.is_reverse -> bool`**: Retorna `True` se o sentido atual for retrocesso.
 - **Parâmetro `direction`**: Permite iniciar diretamente em `Direction.FORWARD` (padrão) ou `Direction.REVERSE` (strings `"forward"` e `"reverse"` também são aceitas).
+- **Parâmetro `backend`**: Permite selecionar o backend de decodificação (`"opencv"`, `"pyav"` ou classe customizada).
 
 ### Dimensionamento Adaptativo de Buffer e Throughput Reverso:
 O `VideoReader` implementa dimensionamento adaptativo automático baseado no FPS da fonte de vídeo:
 - **Prevenção de Starvation:** Ajusta a profundidade dos buffers de acordo com a taxa nativa de quadros, garantindo que o `VideoBufferLeft` sempre mantenha blocos de frames decodificados suficientes para suprir o consumidor sem bloqueios.
 - **Throughput Extremo de 500+ FPS:** Permite navegação e inspeção reversa contínua ultra-rápida (514+ FPS em 720p), eliminando o clássico gargalo de lentidão de decodificação reversa do OpenCV.
 
-### Exemplo de Uso:
+### Exemplos de Uso:
+
+#### A. Leitura Bidirecional com Troca de Sentido em Tempo Real:
 
 ```python
 from aniseek import Direction, VideoReader
@@ -269,6 +275,19 @@ with VideoReader.from_default("video.mp4", start="00:30", end="02:00", direction
     reader.proceed()
     ret, frame = reader.read()
     print(f"Novo frame em avanço: {reader.frame_id}")
+```
+
+#### B. Utilizando o Backend PyAV para Codecs Modernos (AV1 10-bit / HEVC):
+
+```python
+from aniseek import VideoReader
+
+# Decodificação de alta performance com PyAV/libdav1d:
+with VideoReader.from_default("anime_10bit.mkv", backend="pyav") as reader:
+    for ret, frame in reader:
+        if not ret:
+            continue
+        process_frame(reader.frame_id, frame)
 ```
 
 ---
