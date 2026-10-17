@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from unittest.mock import patch
+from unittest.mock import MagicMock, patch
 
 import pytest
 
@@ -8,6 +8,7 @@ from aniseek.config import config
 from aniseek.core.interfaces.source import IFrameSource
 from aniseek.core.sources.image import ImageSource
 from aniseek.core.sources.opencv import OpenCVVideoSource
+from aniseek.core.sources.pyav import PyAVVideoSource
 from aniseek.core.sources.registry import SourceRegistry, source_registry
 from tests.uteis import MyVideoCapture
 
@@ -182,3 +183,56 @@ def test_registry_create_source_uses_global_config(tmp_path):
         source = source_registry.create_source(img_dir)
         assert source.fps == 48.0
         assert source.buffersize == 15
+
+
+@pytest.mark.parametrize(
+    "name,expected_cls",
+    [
+        ("opencv", OpenCVVideoSource),
+        ("pyav", PyAVVideoSource),
+    ],
+    ids=["opencv", "pyav"],
+)
+def test_registry_resolves_video_backend_by_string(name: str, expected_cls):
+    """Resolve backend de video corretamente a partir de string."""
+    resolved = SourceRegistry.resolve_video_backend(name)
+    assert resolved is expected_cls
+
+
+def test_registry_create_source_with_backend_param(tmp_path):
+    """Permite selecionar backend diretamente na chamada de create_source."""
+    video_file = tmp_path / "clip.mkv"
+    video_file.touch()
+
+    with patch("cv2.VideoCapture", return_value=MyVideoCapture(isopened=True)):
+        source_cv = source_registry.create_source(video_file, backend="opencv")
+        assert isinstance(source_cv, OpenCVVideoSource)
+
+    with patch("av.open") as mock_av_open:
+        mock_container = MagicMock()
+        mock_stream = MagicMock()
+        mock_stream.average_rate = 24.0
+        mock_stream.frames = 100
+        mock_container.streams.video = [mock_stream]
+        mock_av_open.return_value = mock_container
+
+        source_av = source_registry.create_source(video_file, backend="pyav")
+        assert isinstance(source_av, PyAVVideoSource)
+
+
+def test_registry_use_with_string_backend(tmp_path):
+    """Permite usar contexto use passando o nome do backend como string."""
+    with source_registry.use(video="pyav"):
+        assert source_registry.video_source is PyAVVideoSource
+
+
+def test_registry_unknown_backend_raises_value_error():
+    """Verifica que backend desconhecido dispara ValueError."""
+    with pytest.raises(ValueError, match="Unknown video backend 'invalid'"):
+        SourceRegistry.resolve_video_backend("invalid")
+
+
+def test_registry_invalid_backend_type_raises_type_error():
+    """Verifica que tipo invalido de backend dispara TypeError."""
+    with pytest.raises(TypeError, match="backend must be a subclass of IFrameSource"):
+        SourceRegistry.resolve_video_backend(12345)  # type: ignore[arg-type]

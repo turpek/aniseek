@@ -118,10 +118,13 @@ class BaseVideoReader(ABC):
         frames: list[int] | None = None,
         buffersize: int | None = None,
         fps: float | None = None,
+        backend: type[IFrameSource] | str | None = None,
     ) -> Self:
         """Create a reader using the default IFrameSource resolved by SourceRegistry."""
         actual_buffersize = buffersize if buffersize is not None else config.buffersize
-        source = source_registry.create_source(path, buffersize=actual_buffersize, fps=fps)
+        source = source_registry.create_source(
+            path, buffersize=actual_buffersize, fps=fps, backend=backend
+        )
         return cls(
             source,
             start=start,
@@ -315,10 +318,13 @@ class VideoReader(BaseVideoReader):
         direction: Direction | str = Direction.FORWARD,
         buffersize: int | None = None,
         fps: float | None = None,
+        backend: type[IFrameSource] | str | None = None,
     ) -> Self:
         """Create a VideoReader using the default IFrameSource resolved by SourceRegistry."""
         actual_buffersize = buffersize if buffersize is not None else config.buffersize
-        source = source_registry.create_source(path, buffersize=actual_buffersize, fps=fps)
+        source = source_registry.create_source(
+            path, buffersize=actual_buffersize, fps=fps, backend=backend
+        )
         return cls(
             source,
             start=start,

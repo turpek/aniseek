@@ -8,8 +8,14 @@ from aniseek.config import config
 from aniseek.core.interfaces.source import IFrameSource
 from aniseek.core.sources.image import ImageSource
 from aniseek.core.sources.opencv import OpenCVVideoSource
+from aniseek.core.sources.pyav import PyAVVideoSource
 
 VIDEO_EXTENSIONS: tuple[str, ...] = config.video_extensions
+
+AVAILABLE_VIDEO_BACKENDS: dict[str, type[IFrameSource]] = {
+    "opencv": OpenCVVideoSource,
+    "pyav": PyAVVideoSource,
+}
 
 
 class SourceRegistry:
@@ -23,6 +29,37 @@ class SourceRegistry:
             cls._instance._video_source = OpenCVVideoSource
             cls._instance._image_source = ImageSource
         return cls._instance
+
+    @classmethod
+    def resolve_video_backend(
+        cls, backend: type[IFrameSource] | str | None
+    ) -> type[IFrameSource]:
+        """Resolve a video backend class from a string name or class type.
+
+        Args:
+            backend: Backend class, string identifier ('opencv', 'pyav'), or None for default.
+
+        Returns:
+            type[IFrameSource]: Resolved backend class.
+
+        Raises:
+            ValueError: If the string name is not in AVAILABLE_VIDEO_BACKENDS.
+            TypeError: If backend is not a subclass of IFrameSource.
+        """
+        if backend is None:
+            return cls().video_source
+        if isinstance(backend, str):
+            key = backend.strip().lower()
+            if key in AVAILABLE_VIDEO_BACKENDS:
+                return AVAILABLE_VIDEO_BACKENDS[key]
+            raise ValueError(
+                f"Unknown video backend '{backend}'. Expected one of: {list(AVAILABLE_VIDEO_BACKENDS.keys())}"
+            )
+        if isinstance(backend, type) and issubclass(backend, IFrameSource):
+            return backend
+        raise TypeError(
+            f"backend must be a subclass of IFrameSource or one of {list(AVAILABLE_VIDEO_BACKENDS.keys())}, got {backend}"
+        )
 
     @property
     def video_source(self) -> type[IFrameSource]:
@@ -55,13 +92,13 @@ class SourceRegistry:
     def use(
         self,
         *,
-        video: type[IFrameSource] | None = None,
+        video: type[IFrameSource] | str | None = None,
         image: type[IFrameSource] | None = None,
     ) -> Generator[SourceRegistry, None, None]:
         """Temporarily override default sources within a context block.
 
         Args:
-            video (type[IFrameSource] | None): Temporary video source class.
+            video (type[IFrameSource] | str | None): Temporary video source class or name.
             image (type[IFrameSource] | None): Temporary image source class.
 
         Yields:
@@ -71,7 +108,7 @@ class SourceRegistry:
         old_image = self._image_source
         try:
             if video is not None:
-                self.video_source = video
+                self.video_source = self.resolve_video_backend(video)
             if image is not None:
                 self.image_source = image
             yield self
@@ -85,13 +122,15 @@ class SourceRegistry:
         *,
         buffersize: int | None = None,
         fps: float | None = None,
+        backend: type[IFrameSource] | str | None = None,
     ) -> IFrameSource:
-        """Resolve and instantiate the appropriate IFrameSource based on path.
+        """Resolve and instantiate the appropriate IFrameSource based on path and backend.
 
         Args:
             path (str | Path): Path to a video file or image directory.
             buffersize (int | None): Buffer size for the frame source (defaults to config.buffersize).
             fps (float | None): Optional FPS override (defaults to detected video FPS or config.image_fps).
+            backend (type[IFrameSource] | str | None): Video decoding backend ('opencv', 'pyav', or class).
 
         Returns:
             IFrameSource: Instantiated frame source.
@@ -106,8 +145,10 @@ class SourceRegistry:
             actual_fps = fps if fps is not None else config.image_fps
             return self._image_source(p, buffersize=actual_buffersize, fps=actual_fps)
 
+        video_cls = self.resolve_video_backend(backend)
+
         if p.suffix.lower() in VIDEO_EXTENSIONS:
-            return self._video_source(p, buffersize=actual_buffersize, fps=fps)
+            return video_cls(p, buffersize=actual_buffersize, fps=fps)
 
         if p.suffix:
             raise ValueError(
@@ -115,7 +156,7 @@ class SourceRegistry:
                 f"Expected one of: {', '.join(VIDEO_EXTENSIONS)}"
             )
 
-        return self._video_source(p, buffersize=actual_buffersize, fps=fps)
+        return video_cls(p, buffersize=actual_buffersize, fps=fps)
 
 
 source_registry = SourceRegistry()

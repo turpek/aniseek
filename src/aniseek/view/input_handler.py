@@ -81,6 +81,7 @@ class PynputKeyReader(InputHandler):
                 on_press=self._on_press,
                 on_release=self._on_release,
             )
+            self._listener.daemon = True
             self._listener.start()
         except Exception as err:
             logger.warning(f'Failed to initialize pynput keyboard listener: {err}')
