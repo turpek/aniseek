@@ -220,6 +220,8 @@ class PyAVVideoSource(IFrameSource):
         fps: float | None = None,
         thread_type: str = "AUTO",
         thread_count: int = 0,
+        skip_loop_filter: str | None = None,
+        skip_frame: str | None = None,
     ) -> None:
         self.path = Path(path)
         if not self.path.exists():
@@ -259,6 +261,18 @@ class PyAVVideoSource(IFrameSource):
         if thread_count > 0:
             try:
                 self._stream.codec_context.thread_count = thread_count
+            except (AttributeError, ValueError):
+                pass
+        if skip_frame:
+            try:
+                self._stream.codec_context.skip_frame = str(skip_frame).upper()
+            except (AttributeError, ValueError):
+                pass
+        if skip_loop_filter:
+            try:
+                opts = dict(self._stream.codec_context.options or {})
+                opts["skip_loop_filter"] = str(skip_loop_filter).lower()
+                self._stream.codec_context.options = opts
             except (AttributeError, ValueError):
                 pass
 
