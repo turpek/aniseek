@@ -26,8 +26,13 @@ def mycap():
 
 @fixture
 def creating_window():
-    with patch('aniseek.view.video.FrameViewer._FrameViewer__creating_window', return_value=None) as mock:
-        yield mock
+    with (
+        patch('aniseek.view.display.cv2.namedWindow'),
+        patch('aniseek.view.display.cv2.resizeWindow'),
+        patch('aniseek.view.display.cv2.imshow'),
+        patch('aniseek.view.display.cv2.destroyWindow'),
+    ):
+        yield
 
 
 @fixture
@@ -208,7 +213,7 @@ def test_frame_viewer_save_command_via_shortcut(mycap, creating_window):
     """Verifica execução do SaveCommand através do atalho Ctrl+w."""
     source = OpenCVVideoSource('test_video.mp4')
     viewer = FrameViewer(source)
-    with patch.object(viewer._FrameViewer__video_controller, 'save') as mock_save:
+    with patch.object(viewer._video_controller, 'save') as mock_save:
         viewer.control(IP.CTRL_BIT | ord('w'), ButtonState.PRESS)
         mock_save.assert_called_once()
     viewer.join()
@@ -218,7 +223,7 @@ def test_frame_viewer_custom_shortcuts_in_init(mycap, creating_window):
     """Verifica sobrescrita de atalhos através do parâmetro shortcuts."""
     source = OpenCVVideoSource('test_video.mp4')
     viewer = FrameViewer(source, shortcuts={ord('k'): 'PauseCommand'})
-    with patch.object(viewer._FrameViewer__video_controller, 'set_pause') as mock_pause:
+    with patch.object(viewer._video_controller, 'set_pause') as mock_pause:
         viewer.control(ord('k'), ButtonState.PRESS)
         mock_pause.assert_called_once()
     viewer.join()
@@ -312,7 +317,7 @@ def test_frame_viewer_directional_right_triggers_dynamic_proceed(mycap, creating
     """Verifica que a tecla direcional direita dispara o DynamicProceedCommand."""
     source = OpenCVVideoSource('test_video.mp4')
     viewer = FrameViewer(source)
-    with patch.object(viewer._FrameViewer__video_controller, 'proceed') as mock_proceed:
+    with patch.object(viewer._video_controller, 'proceed') as mock_proceed:
         viewer.control(IP.KEY_RIGHT, ButtonState.PRESS)
         mock_proceed.assert_called_once()
     viewer.join()
@@ -322,7 +327,7 @@ def test_frame_viewer_directional_left_triggers_dynamic_rewind(mycap, creating_w
     """Verifica que a tecla direcional esquerda dispara o DynamicRewindCommand."""
     source = OpenCVVideoSource('test_video.mp4')
     viewer = FrameViewer(source)
-    with patch.object(viewer._FrameViewer__video_controller, 'rewind') as mock_rewind:
+    with patch.object(viewer._video_controller, 'rewind') as mock_rewind:
         viewer.control(IP.KEY_LEFT, ButtonState.PRESS)
         mock_rewind.assert_called_once()
     viewer.join()
@@ -353,7 +358,7 @@ def test_default_title_formatter_normal_mode():
         label="1_vertical_394_kimi_no_koto_ga_dai_dai_dai_dai_daisuki_na_100-nin_no_kanojo_08_1439_1",
     )
     title = default_title_formatter(ctx)
-    assert title == "videoseq - [1/15] [1_vertical..._08_1439_1] [Seção 1/6 | Frame 5/34 (#21055)] [>>]"
+    assert title == "[1/15] [1_vertical..._08_1439_1] [Seção 1/6 | Frame 5/34 (#21055)] [>>]"
 
 
 def test_default_title_formatter_preview_and_paused():
@@ -372,7 +377,7 @@ def test_default_title_formatter_preview_and_paused():
         label=None,
     )
     title = default_title_formatter(ctx)
-    assert title == "videoseq - [PREVIEW | Frame: 100] [<<] (PAUSADO)"
+    assert title == "[PREVIEW | Frame: 100] [<<] (PAUSADO)"
 
 
 def test_frame_viewer_custom_title_formatter(mycap, creating_window):
@@ -384,11 +389,11 @@ def test_frame_viewer_custom_title_formatter(mycap, creating_window):
         received_contexts.append(ctx)
         return f"custom - {ctx.frame_id}"
 
-    with patch('aniseek.view.video.cv2.setWindowTitle') as mock_set_title:
+    with patch('aniseek.view.display.cv2.setWindowTitle') as mock_set_title:
         viewer = FrameViewer(source, title_formatter=custom_formatter)
         viewer.read()
         viewer._update_title()
-        mock_set_title.assert_called_with('videoseq', 'custom - 0')
+        mock_set_title.assert_called_with('aniseek', 'custom - 0')
         assert len(received_contexts) >= 1
         assert received_contexts[-1].frame_id == 0
         viewer.join()

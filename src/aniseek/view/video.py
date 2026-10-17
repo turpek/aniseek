@@ -6,7 +6,6 @@ from dataclasses import dataclass
 from pathlib import Path
 from time import sleep
 
-import cv2
 from loguru import logger
 
 from aniseek.config import config
@@ -15,8 +14,10 @@ from aniseek.core.sources.registry import source_registry
 from aniseek.editing.manager import VideoManager
 from aniseek.editing.playlist import Playlist
 from aniseek.editing.section import SectionManager
+from aniseek.view.display import CV2Display, resolve_display
 from aniseek.view.input_handler import PynputKeyReader
 from aniseek.view.interfaces.command import ButtonState, Command
+from aniseek.view.interfaces.display import IFrameDisplay
 from aniseek.view.interfaces.input import InputHandler
 from aniseek.view.shortcuts import PYNPUT_SHORTCUTS, SHORTCUTS
 from aniseek.view.video_command import (
@@ -88,11 +89,11 @@ def default_title_formatter(ctx: ViewerTitleContext) -> str:
 
     if ctx.is_preview:
         fid_str = str(ctx.frame_id) if ctx.frame_id is not None else '-'
-        return f'videoseq - {prefix}[PREVIEW | Frame: {fid_str}] [{direction_str}]{paused_str}'
+        return f'{prefix}[PREVIEW | Frame: {fid_str}] [{direction_str}]{paused_str}'
 
     fid_str = f' (#{ctx.frame_id})' if ctx.frame_id is not None else ''
     return (
-        f'videoseq - {prefix}[Seção {ctx.section_index}/{ctx.total_sections} | '
+        f'{prefix}[Seção {ctx.section_index}/{ctx.total_sections} | '
         f'Frame {ctx.relative_frame}/{ctx.section_frames}{fid_str}] '
         f'[{direction_str}]{paused_str}'
     )
@@ -100,14 +101,16 @@ def default_title_formatter(ctx: ViewerTitleContext) -> str:
 
 class FrameViewer:
     def __init__(
-            self,
-            source: IFrameSource, *,
-            sections: SectionManager | dict | Path | str | None = None,
-            shortcuts: dict[int, str] | None = None,
-            buffersize: int = 60,
-            key_reader: type[InputHandler] = PynputKeyReader,
-            log: bool = False,
-            title_formatter: TitleFormatter | None = None,
+        self,
+        source: IFrameSource,
+        *,
+        sections: SectionManager | dict | Path | str | None = None,
+        shortcuts: dict[int, str] | None = None,
+        buffersize: int = 60,
+        key_reader: type[InputHandler] = PynputKeyReader,
+        display: type[IFrameDisplay] | str = CV2Display,
+        log: bool = False,
+        title_formatter: TitleFormatter | None = None,
     ):
         if not isinstance(source, IFrameSource):
             raise TypeError(
@@ -115,28 +118,31 @@ class FrameViewer:
                 "Use FrameViewer.from_default(path) if passing a file path or directory."
             )
 
-        self.__source = source
-        self.__log = log
-        self.__buffersize = buffersize
-        self.__creating_window()
-        self.__key_reader = key_reader()
-        kr = type(self.__key_reader)
-        base_shortcuts = SHORTCUTS.get(kr, PYNPUT_SHORTCUTS)
-        self.__shortcuts = dict(base_shortcuts)
-        if shortcuts is not None:
-            self.__shortcuts.update(shortcuts)
+        self._source = source
+        self._log = log
+        self._buffersize = buffersize
+        display_cls = resolve_display(display)
+        self._display: IFrameDisplay = display_cls()
+        self._creating_window()
 
-        self.__last_title: str | None = None
-        self.__title_formatter: TitleFormatter = title_formatter or default_title_formatter
-        self.__video_manager = VideoManager(buffersize, log)
-        self.__video_controller = VideoController.from_source(
+        self._key_reader = key_reader()
+        kr = type(self._key_reader)
+        base_shortcuts = SHORTCUTS.get(kr, PYNPUT_SHORTCUTS)
+        self._shortcuts = dict(base_shortcuts)
+        if shortcuts is not None:
+            self._shortcuts.update(shortcuts)
+
+        self._last_title: str | None = None
+        self._title_formatter: TitleFormatter = title_formatter or default_title_formatter
+        self._video_manager = VideoManager(buffersize, log)
+        self._video_controller = VideoController.from_source(
             source=source,
-            video_manager=self.__video_manager,
+            video_manager=self._video_manager,
             sections=sections,
         )
 
         self.command = Invoker()
-        self.set_commands(self.__video_controller)
+        self.set_commands(self._video_controller)
 
     @classmethod
     def from_default(
@@ -147,6 +153,8 @@ class FrameViewer:
         shortcuts: dict[int, str] | None = None,
         buffersize: int = 60,
         key_reader: type[InputHandler] = PynputKeyReader,
+        display: type[IFrameDisplay] | str = CV2Display,
+        backend: type[IFrameSource] | str | None = None,
         log: bool = False,
         title_formatter: TitleFormatter | None = None,
     ) -> FrameViewer:
@@ -155,13 +163,16 @@ class FrameViewer:
                 "from_default() expects a file path (str or Path), not an IFrameSource instance. "
                 "Use FrameViewer(source) directly."
             )
-        source = source_registry.create_source(path)
+        source = source_registry.create_source(
+            path, buffersize=buffersize, backend=backend
+        )
         return cls(
             source,
             sections=sections,
             shortcuts=shortcuts,
             buffersize=buffersize,
             key_reader=key_reader,
+            display=display,
             log=log,
             title_formatter=title_formatter,
         )
@@ -175,6 +186,7 @@ class FrameViewer:
         shortcuts: dict[int, str] | None = None,
         buffersize: int = 60,
         key_reader: type[InputHandler] = PynputKeyReader,
+        display: type[IFrameDisplay] | str = CV2Display,
         log: bool = False,
         title_formatter: TitleFormatter | None = None,
     ) -> FrameViewer:
@@ -183,27 +195,30 @@ class FrameViewer:
                 f"Expected playlist to be an instance of Playlist, got {type(playlist).__name__}."
             )
         viewer = cls.__new__(cls)
-        viewer.__source = None
-        viewer.__log = log
-        viewer.__buffersize = buffersize
-        viewer.__creating_window()
-        viewer.__key_reader = key_reader()
-        kr = type(viewer.__key_reader)
-        base_shortcuts = SHORTCUTS.get(kr, PYNPUT_SHORTCUTS)
-        viewer.__shortcuts = dict(base_shortcuts)
-        if shortcuts is not None:
-            viewer.__shortcuts.update(shortcuts)
+        viewer._source = None
+        viewer._log = log
+        viewer._buffersize = buffersize
+        display_cls = resolve_display(display)
+        viewer._display = display_cls()
+        viewer._creating_window()
 
-        viewer.__last_title = None
-        viewer.__title_formatter = title_formatter or default_title_formatter
-        viewer.__video_manager = VideoManager(buffersize, log)
-        viewer.__video_controller = VideoController(
+        viewer._key_reader = key_reader()
+        kr = type(viewer._key_reader)
+        base_shortcuts = SHORTCUTS.get(kr, PYNPUT_SHORTCUTS)
+        viewer._shortcuts = dict(base_shortcuts)
+        if shortcuts is not None:
+            viewer._shortcuts.update(shortcuts)
+
+        viewer._last_title = None
+        viewer._title_formatter = title_formatter or default_title_formatter
+        viewer._video_manager = VideoManager(buffersize, log)
+        viewer._video_controller = VideoController(
             playlist=playlist,
-            video_manager=viewer.__video_manager,
+            video_manager=viewer._video_manager,
             sections=sections,
         )
         viewer.command = Invoker()
-        viewer.set_commands(viewer.__video_controller)
+        viewer.set_commands(viewer._video_controller)
         return viewer
 
     def bind(self, key: int, command: Command) -> None:
@@ -212,12 +227,12 @@ class FrameViewer:
             raise TypeError(
                 f"Expected command to be an instance of Command, got {type(command).__name__}"
             )
-        self.__shortcuts[key] = key
+        self._shortcuts[key] = key
         self.command.set_command(key, command)
 
     def save(self, file_path: Path | str | None = None) -> None:
         """Salva o estado das seções explicitamente."""
-        self.__video_controller.save(file_path)
+        self._video_controller.save(file_path)
 
     def __enter__(self):
         return self
@@ -225,33 +240,38 @@ class FrameViewer:
     def __exit__(self, exc_type, exc_value, traceback):
         sleep(1)
         self.join()
-        cv2.destroyWindow('videoseq')
+        self._display.close()
 
-    def __creating_window(self) -> None:
-        """
-        Cria a janela onde os frames serão exibidos.
+    def _creating_window(self) -> None:
+        """Cria a janela onde os frames serão exibidos."""
+        self._display.create_window(name="aniseek", width=720, height=420)
 
-        Returns:
-            None
-        """
-        cv2.namedWindow('videoseq', cv2.WINDOW_NORMAL | cv2.WINDOW_GUI_NORMAL)
-        cv2.resizeWindow('videoseq', 720, 420)
+    # Backward compatibility alias
+    _FrameViewer__creating_window = _creating_window
 
     def join(self):
-        self.__video_controller.join()
-        self.__key_reader.join()
+        self._video_controller.join()
+        self._key_reader.join()
+
+    @property
+    def display(self) -> IFrameDisplay:
+        return self._display
 
     @property
     def video_controller(self) -> VideoController:
-        return self.__video_controller
+        return self._video_controller
+
+    # Backward compatibility alias
+    @property
+    def _FrameViewer__video_controller(self) -> VideoController:
+        return self._video_controller
 
     @property
     def frame_id(self):
-        return self.__video_controller.frame_id
+        return self._video_controller.frame_id
 
     def set(self, frame_id) -> None:
-        """
-        Define o vídeo para o frame especificado pelo índice 'frame_id'.
+        """Define o vídeo para o frame especificado pelo índice 'frame_id'.
 
         Posiciona o vídeo no frame correspondente ao índice fornecido.
         O índice deve ser um valor inteiro maior ou igual a 0.
@@ -259,45 +279,42 @@ class FrameViewer:
         Args:
             frame_id (int): O índice do frame para o qual o vídeo deve ser posicionado.
                             Deve ser um valor maior ou igual a 0.
-
-        Returns:
-            None
         """
-        self.__video_controller.set_frame(frame_id)
+        self._video_controller.set_frame(frame_id)
 
     def _show(self, frame):
-        cv2.imshow('videoseq', frame)
+        self._display.show_frame(frame)
 
     def set_title_formatter(self, formatter: TitleFormatter) -> None:
         """Define uma função customizada para formatação do título da janela."""
-        self.__title_formatter = formatter
-        self.__last_title = None
+        self._title_formatter = formatter
+        self._last_title = None
         self._update_title()
 
     @property
     def title_formatter(self) -> TitleFormatter:
-        return self.__title_formatter
+        return self._title_formatter
 
     def _update_title(self) -> None:
         try:
             frame_id = self.frame_id
-            is_rewind = self.__video_manager.player.is_rewind
-            is_paused = self.__video_manager.player.delay == 0
-            is_preview = self.__video_controller.is_preview
+            is_rewind = self._video_manager.player.is_rewind
+            is_paused = self._video_manager.player.delay == 0
+            is_preview = self._video_controller.is_preview
 
             pl_idx: int | None = None
             pl_total: int | None = None
             label: str | None = None
 
-            if self.__video_controller.playlist is not None:
-                playlist = self.__video_controller.playlist
+            if self._video_controller.playlist is not None:
+                playlist = self._video_controller.playlist
                 vinfo = playlist.get_video_info()
                 if vinfo is not None:
                     pl_idx = playlist.current_index
                     pl_total = len(playlist)
                     label = vinfo.label
 
-            sec_man = self.__video_controller.section_manager
+            sec_man = self._video_controller.section_manager
             if sec_man is not None and len(sec_man.sections) > 0:
                 sec_idx = sec_man.current_index + 1
                 sec_total = len(sec_man.sections)
@@ -333,10 +350,10 @@ class FrameViewer:
                 label=label,
             )
 
-            title = self.__title_formatter(ctx)
-            if title != self.__last_title:
-                cv2.setWindowTitle('videoseq', title)
-                self.__last_title = title
+            title = self._title_formatter(ctx)
+            if title != self._last_title:
+                self._display.set_title(title)
+                self._last_title = title
         except Exception as err:
             logger.debug(f'_update_title error: {err}')
 
@@ -345,8 +362,8 @@ class FrameViewer:
             logger.trace(f'Displaying frame {self.frame_id}')
             self._show(frame)
         self._update_title()
-        delay = self.__video_manager.player.delay
-        event = self.__key_reader.get_event(delay)
+        delay = self._video_manager.player.delay
+        event = self._key_reader.get_event(delay)
         if event is not None:
             key, state = event
             return self.control(key, state)
@@ -385,12 +402,14 @@ class FrameViewer:
         command.set_command('DynamicRewindCommand', DynamicRewindCommand(video_controller))
 
     def control(self, key, state: ButtonState):
-        shortcut_key = self.__shortcuts.get(key, key)
+        shortcut_key = self._shortcuts.get(key, key)
         self.command.executor_command(shortcut_key, state)
         return key
 
     def read(self):
-        return self.__video_controller.read()
+        return self._video_controller.read()
 
     def quit(self):
-        return self.__video_controller.quit()
+        self.join()
+        self._display.close()
+        return self._video_controller.quit()
