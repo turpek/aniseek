@@ -6,9 +6,23 @@ import av
 import numpy as np
 import pytest
 
-from aniseek.core.sources.pyav import PyAVBuffer, PyAVVideoSource
+from aniseek.core.sources.pyav import PyAVBuffer, PyAVFormat, PyAVVideoSource
 from aniseek.core.sources.registry import source_registry
 from aniseek.core.video_reader import Direction, VideoReader
+
+
+def test_pyav_format_properties():
+    """Valida propriedades semanticas de canais e canal alfa no PyAVFormat."""
+    assert PyAVFormat.BGR.channels == 3
+    assert PyAVFormat.RGB.channels == 3
+    assert PyAVFormat.GRAY.channels == 1
+    assert PyAVFormat.BGRA.channels == 4
+    assert PyAVFormat.RGBA.channels == 4
+
+    assert PyAVFormat.BGR.has_alpha is False
+    assert PyAVFormat.GRAY.has_alpha is False
+    assert PyAVFormat.BGRA.has_alpha is True
+    assert PyAVFormat.RGBA.has_alpha is True
 
 
 @pytest.fixture
@@ -91,6 +105,75 @@ def test_pyav_source_validate_frame_count(synthetic_video_path: Path):
         valid_count = source.validate_frame_count()
 
     assert valid_count == 20
+
+
+@pytest.mark.parametrize(
+    ("fmt", "dtype", "expected_shape", "expected_dtype"),
+    [
+        (PyAVFormat.BGR, np.uint8, (48, 64, 3), np.uint8),
+        (PyAVFormat.RGB, np.uint8, (48, 64, 3), np.uint8),
+        (PyAVFormat.GRAY, np.uint8, (48, 64), np.uint8),
+        (PyAVFormat.BGR, np.uint16, (48, 64, 3), np.uint16),
+        (PyAVFormat.RGB, np.uint16, (48, 64, 3), np.uint16),
+        (PyAVFormat.GRAY, np.uint16, (48, 64), np.uint16),
+        ("bgr24", np.uint8, (48, 64, 3), np.uint8),
+    ],
+    ids=[
+        "bgr_uint8",
+        "rgb_uint8",
+        "gray_uint8",
+        "bgr_uint16",
+        "rgb_uint16",
+        "gray_uint16",
+        "raw_string_bgr24",
+    ],
+)
+def test_pyav_source_formats(
+    synthetic_video_path: Path,
+    fmt: PyAVFormat | str,
+    dtype: type,
+    expected_shape: tuple[int, ...],
+    expected_dtype: type,
+):
+    """Valida decodificacao nos formatos BGR, RGB e GRAY com diferentes dtypes."""
+    with PyAVVideoSource(synthetic_video_path, format=fmt, dtype=dtype) as source:
+        ret, frame = source.read()
+
+    assert ret is True
+    assert frame is not None
+    assert frame.shape == expected_shape
+    assert frame.dtype == expected_dtype
+
+
+def test_pyav_source_readonly_mode(synthetic_video_path: Path):
+    """Valida protecao de memoria com array somente-leitura quando readonly=True."""
+    with PyAVVideoSource(synthetic_video_path, readonly=True) as source:
+        ret, frame = source.read()
+
+    assert ret is True
+    assert frame is not None
+    assert frame.flags.writeable is False
+
+
+def test_pyav_source_thread_options(synthetic_video_path: Path):
+    """Valida inicializacao com opcoes explicitas de thread no codec."""
+    with PyAVVideoSource(synthetic_video_path, thread_type="FRAME", thread_count=2) as source:
+        ret, frame = source.read()
+
+    assert ret is True
+    assert frame is not None
+
+
+def test_pyav_source_target_size_and_interpolation(synthetic_video_path: Path):
+    """Valida redimensionamento de frames diretamente na decodificacao com target_size."""
+    target_size = (32, 24)
+    with PyAVVideoSource(synthetic_video_path, target_size=target_size, interpolation="FAST_BILINEAR") as source:
+        assert source.size == (32, 24)
+        ret, frame = source.read()
+
+    assert ret is True
+    assert frame is not None
+    assert frame.shape == (24, 32, 3)
 
 
 def test_pyav_source_integration_with_video_reader(synthetic_video_path: Path):

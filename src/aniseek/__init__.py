@@ -8,7 +8,7 @@ except PackageNotFoundError:
     __version__ = "0.3.0a1"
 
 from aniseek.config import config
-from aniseek.core.sources.pyav import PyAVVideoSource
+from aniseek.core.sources.pyav import PyAVFormat, PyAVVideoSource
 from aniseek.core.video_reader import (
     BaseVideoReader,
     Direction,
@@ -29,6 +29,7 @@ __all__ = [
     "BaseVideoReader",
     "Direction",
     "ForwardReader",
+    "PyAVFormat",
     "PyAVVideoSource",
     "ReverseReader",
     "VideoReader",
