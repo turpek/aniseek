@@ -2,13 +2,121 @@ from __future__ import annotations
 
 from collections import OrderedDict
 from collections.abc import Callable, Iterator
+from enum import StrEnum
 from pathlib import Path
 
 import av
+import av.video.frame
+import numpy as np
 from numpy import ndarray
 
 from aniseek.core.interfaces.source import IFrameSource
 from aniseek.core.keyframes import extract_keyframe_indices
+
+
+class PyAVFormat(StrEnum):
+    """Supported color formats for PyAV frame decoding."""
+
+    BGR = "bgr"
+    RGB = "rgb"
+    GRAY = "gray"
+    BGRA = "bgra"
+    RGBA = "rgba"
+
+    @property
+    def channels(self) -> int:
+        """Number of color channels in the format."""
+        return {
+            PyAVFormat.GRAY: 1,
+            PyAVFormat.BGR: 3,
+            PyAVFormat.RGB: 3,
+            PyAVFormat.BGRA: 4,
+            PyAVFormat.RGBA: 4,
+        }[self]
+
+    @property
+    def has_alpha(self) -> bool:
+        """Whether the format contains an alpha transparency channel."""
+        return self in (PyAVFormat.BGRA, PyAVFormat.RGBA)
+
+    def to_pix_fmt(self, dtype: np.dtype | type = np.uint8) -> str:
+        """Resolve the PyAV/FFmpeg pixel format string for the given NumPy dtype.
+
+        Args:
+            dtype (np.dtype | type): Desired data type (uint8, uint16, float32).
+
+        Returns:
+            str: PyAV compatible pixel format string.
+
+        Raises:
+            ValueError: If the combination of format and dtype is not supported.
+        """
+        resolved_dtype = np.dtype(dtype)
+
+        if self == PyAVFormat.GRAY:
+            if resolved_dtype == np.uint8:
+                return "gray"
+            if resolved_dtype == np.uint16:
+                return "gray16le"
+            if resolved_dtype == np.float32:
+                return "grayf32le"
+
+        elif self == PyAVFormat.BGR:
+            if resolved_dtype == np.uint8:
+                return "bgr24"
+            if resolved_dtype == np.uint16:
+                return "bgr48le"
+
+        elif self == PyAVFormat.RGB:
+            if resolved_dtype == np.uint8:
+                return "rgb24"
+            if resolved_dtype == np.uint16:
+                return "rgb48le"
+            if resolved_dtype == np.float32:
+                return "rgbf32le"
+
+        elif self == PyAVFormat.BGRA:
+            if resolved_dtype == np.uint8:
+                return "bgra"
+            if resolved_dtype == np.uint16:
+                return "bgra64le"
+
+        elif self == PyAVFormat.RGBA:
+            if resolved_dtype == np.uint8:
+                return "rgba"
+            if resolved_dtype == np.uint16:
+                return "rgba64le"
+            if resolved_dtype == np.float32:
+                return "rgbaf32le"
+
+        raise ValueError(
+            f"Unsupported combination for PyAVFormat.{self.name}: dtype={resolved_dtype}"
+        )
+
+
+def _resolve_pix_fmt(
+    format_spec: PyAVFormat | str,
+    dtype: np.dtype | type,
+) -> tuple[str, np.dtype]:
+    """Resolve format specification and dtype to a PyAV pixel format string and dtype."""
+    resolved_dtype = np.dtype(dtype)
+
+    if isinstance(format_spec, PyAVFormat):
+        return format_spec.to_pix_fmt(resolved_dtype), resolved_dtype
+
+    format_str = str(format_spec).strip()
+    try:
+        enum_val = PyAVFormat(format_str.lower())
+        return enum_val.to_pix_fmt(resolved_dtype), resolved_dtype
+    except ValueError:
+        pass
+
+    if format_str in av.video.frame.supported_np_pix_fmts:
+        return format_str, resolved_dtype
+
+    raise ValueError(
+        f"Unknown or unsupported video format: '{format_spec}' with dtype {resolved_dtype}"
+    )
 
 
 class PyAVBuffer:
@@ -103,14 +211,31 @@ class PyAVVideoSource(IFrameSource):
         self,
         path: str | Path,
         *,
+        target_size: tuple[int, int] | None = None,
+        interpolation: str = "FAST_BILINEAR",
+        format: PyAVFormat | str = PyAVFormat.BGR,
+        dtype: np.dtype | type = np.uint8,
+        readonly: bool = False,
         buffersize: int = 30,
         fps: float | None = None,
+        thread_type: str = "AUTO",
+        thread_count: int = 0,
     ) -> None:
         self.path = Path(path)
         if not self.path.exists():
             raise RuntimeError(f"Could not open video file: {self.path}")
         if self.path.is_dir():
             raise RuntimeError(f"Path is a directory, not a video file: {self.path}")
+
+        self.target_size = (
+            (int(target_size[0]), int(target_size[1]))
+            if target_size is not None
+            else None
+        )
+        self.interpolation = interpolation
+
+        self._pix_fmt, self._dtype = _resolve_pix_fmt(format, dtype)
+        self.readonly = readonly
 
         try:
             self._container: av.container.InputContainer | None = av.open(
@@ -125,6 +250,17 @@ class PyAVVideoSource(IFrameSource):
             raise RuntimeError(f"No video streams found in {self.path}")
 
         self._stream: av.video.stream.VideoStream = video_streams[0]
+
+        if thread_type:
+            try:
+                self._stream.codec_context.thread_type = thread_type
+            except (AttributeError, ValueError):
+                pass
+        if thread_count > 0:
+            try:
+                self._stream.codec_context.thread_count = thread_count
+            except (AttributeError, ValueError):
+                pass
 
         detected_fps = float(
             self._stream.average_rate or self._stream.guessed_rate or 0.0
@@ -146,7 +282,7 @@ class PyAVVideoSource(IFrameSource):
 
         width = int(self._stream.width or 0)
         height = int(self._stream.height or 0)
-        self._size = (width, height)
+        self._size = self.target_size if self.target_size is not None else (width, height)
 
         self.buffersize = max(1, buffersize)
         self._cursor = 0
@@ -218,7 +354,18 @@ class PyAVVideoSource(IFrameSource):
         frame = self._buffer.decode(self._cursor)
         if frame is not None:
             self._cursor += 1
-            arr = frame.to_ndarray(format="bgr24")
+            if self.target_size is not None:
+                w, h = self.target_size
+                arr = frame.to_ndarray(
+                    format=self._pix_fmt,
+                    width=w,
+                    height=h,
+                    interpolation=self.interpolation,
+                )
+            else:
+                arr = frame.to_ndarray(format=self._pix_fmt)
+            if self.readonly:
+                arr.flags.writeable = False
             return True, arr
 
         self._handle_read_failure(self._cursor)
