@@ -176,6 +176,24 @@ def test_pyav_source_target_size_and_interpolation(synthetic_video_path: Path):
     assert frame.shape == (24, 32, 3)
 
 
+def test_pyav_source_skip_loop_filter(synthetic_video_path: Path):
+    """Valida decodificacao desativando o filtro de deblocking com skip_loop_filter."""
+    with PyAVVideoSource(synthetic_video_path, skip_loop_filter="ALL") as source:
+        ret, frame = source.read()
+
+    assert ret is True
+    assert frame is not None
+
+
+def test_pyav_source_skip_frame(synthetic_video_path: Path):
+    """Valida descarte de quadros nao-referenciais via skip_frame."""
+    with PyAVVideoSource(synthetic_video_path, skip_frame="NONREF") as source:
+        ret, frame = source.read()
+
+    assert ret is True
+    assert frame is not None
+
+
 def test_pyav_source_integration_with_video_reader(synthetic_video_path: Path):
     """Valida integracao cooperativa bidirecional entre PyAVVideoSource e VideoReader."""
     source = PyAVVideoSource(synthetic_video_path)
