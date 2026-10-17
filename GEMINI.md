@@ -206,3 +206,13 @@ aniseek/
   - `PrevVideoEndCommand` (`Ctrl+p` no pynput / `Shift+p` ou `P` no OpenCV): Salta para o final do vídeo anterior com pré-aquecimento de buffer e inicia em `rewind`.
 - **Mecanismo de Prefill:** O comando posiciona o cursor em `max(0, target_frame - prefill_frames)`, decodifica para frente preenchendo a janela do `VideoBufferRight` em RAM e inverte imediatamente o sentido para `rewind`. Isso evita starvation inicial e permite retroceder a 50+ FPS imediatamente.
 
+### 7.10. Suporte a PyAV e Decodificação Moderna (`PyAVVideoSource` & `PyAVFormat`)
+- **Backend Moderno via FFmpeg/libdav1d:** `PyAVVideoSource` resolve limitações de decodificação do OpenCV (especialmente para AV1 10-bit `yuv420p10le`, HEVC e H.264 com perfis avançados).
+- **Especificação de Cores e Profundidade:**
+  - `PyAVFormat(StrEnum)` encapsula espaços de cor (`BGR`, `RGB`, `GRAY`, `BGRA`, `RGBA`) 100% compatível por valor de string com o `ImageFormat` do `anicrop`.
+  - Profundidade de bits governada por `np.dtype`: `(PyAVFormat.BGR, np.uint8)` $\rightarrow$ `"bgr24"`, `(PyAVFormat.BGR, np.uint16)` $\rightarrow$ `"bgr48le"`, `(PyAVFormat.GRAY, np.uint8)` $\rightarrow$ `"gray"`, `(PyAVFormat.GRAY, np.uint16)` $\rightarrow$ `"gray16le"`.
+- **Array Somente-Leitura com Custo Zero (`readonly=True`):** Ao ativar `readonly=True`, os frames retornam com `arr.flags.writeable = False`, protegendo o cache cooperativo em memória contra mutações acidentais sem overhead de cópia.
+- **Named Constructors:**
+  - `PyAVVideoSource.fast_gray(path)`: Extrai apenas o canal de luminância $Y$ para máxima velocidade (~230+ FPS).
+  - `PyAVVideoSource.high_fidelity(path)`: Decodifica em 16-bit por canal preservando a profundidade HDR original.
+
