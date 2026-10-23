@@ -37,6 +37,7 @@ class BaseVideoReader(ABC):
         step: int = 1,
         frames: list[int] | None = None,
         buffersize: int = 30,
+        lazy: bool = False,
     ) -> None:
         if not isinstance(source, IFrameSource):
             raise TypeError("source must be an instance of IFrameSource")
@@ -54,6 +55,7 @@ class BaseVideoReader(ABC):
         self.mapping = FrameMapper(self.frame_ids, self.total_frames)
         self.semaphore = Semaphore()
         self.buffersize = buffersize
+        self.lazy = lazy
         self.source._callback = self._on_source_frame_count_changed
 
     def _on_source_frame_count_changed(self, old_count: int, new_count: int) -> None:
@@ -96,6 +98,15 @@ class BaseVideoReader(ABC):
         self.frame_ids = list(range(start, end))
         self.mapping.set_mapping(self.frame_ids, self.total_frames, [])
 
+    def start(self) -> None:
+        """Inicia explicitamente a coleta de frames em background caso em modo lazy."""
+        pass
+
+    @abstractmethod
+    def clear(self) -> None:
+        """Esvazia os frames armazenados nos buffers."""
+        pass
+
     @abstractmethod
     def close(self) -> None:
         """Encerra os buffers e libera recursos de captura."""
@@ -124,6 +135,7 @@ class BaseVideoReader(ABC):
         buffersize: int | None = None,
         fps: float | None = None,
         backend: type[IFrameSource] | str | None = None,
+        lazy: bool = False,
     ) -> Self:
         """Create a reader using the default IFrameSource resolved by SourceRegistry."""
         actual_buffersize = buffersize if buffersize is not None else config.buffersize
@@ -137,6 +149,7 @@ class BaseVideoReader(ABC):
             step=step,
             frames=frames,
             buffersize=actual_buffersize,
+            lazy=lazy,
         )
 
 
@@ -152,6 +165,7 @@ class ForwardReader(BaseVideoReader):
         step: int = 1,
         frames: list[int] | None = None,
         buffersize: int = 30,
+        lazy: bool = False,
     ) -> None:
         super().__init__(
             source,
@@ -160,6 +174,7 @@ class ForwardReader(BaseVideoReader):
             step=step,
             frames=frames,
             buffersize=buffersize,
+            lazy=lazy,
         )
         fps_val = round(self.fps) if self.fps and self.fps > 0 else 30
         self.buffersize_right = max(self.buffersize, fps_val)
@@ -169,9 +184,14 @@ class ForwardReader(BaseVideoReader):
             self.semaphore,
             buffersize=self.buffersize_right,
         )
-        if len(self.frame_ids) > 0:
+        if not self.lazy and len(self.frame_ids) > 0:
             self.buffer.run()
             self.buffer._buffer.wait_task()
+
+    def start(self) -> None:
+        """Inicia a coleta de frames em segundo plano."""
+        if len(self.frame_ids) > 0:
+            self.buffer.run()
 
     @property
     def is_task_complete(self) -> bool:
@@ -191,6 +211,10 @@ class ForwardReader(BaseVideoReader):
 
     def set_frame(self, frame_id: int) -> None:
         self.buffer.set(frame_id)
+
+    def clear(self) -> None:
+        """Esvazia os frames armazenados no buffer."""
+        self.buffer.clear()
 
     def close(self) -> None:
         self.source._callback = lambda old, new: None
@@ -210,6 +234,7 @@ class ReverseReader(BaseVideoReader):
         step: int = 1,
         frames: list[int] | None = None,
         buffersize: int = 30,
+        lazy: bool = False,
     ) -> None:
         super().__init__(
             source,
@@ -218,6 +243,7 @@ class ReverseReader(BaseVideoReader):
             step=step,
             frames=frames,
             buffersize=buffersize,
+            lazy=lazy,
         )
         fps_val = round(self.fps) if self.fps and self.fps > 0 else 30
         self.buffersize_left = max(3 * self.buffersize, 3 * fps_val)
@@ -229,8 +255,14 @@ class ReverseReader(BaseVideoReader):
         )
         if len(self.frame_ids) > 0:
             self.buffer.set(self.frame_ids[-1] + 1)
+            if not self.lazy:
+                self.buffer.run()
+                self.buffer._buffer.wait_task()
+
+    def start(self) -> None:
+        """Inicia a coleta reversa de frames em segundo plano."""
+        if len(self.frame_ids) > 0:
             self.buffer.run()
-            self.buffer._buffer.wait_task()
 
     @property
     def is_task_complete(self) -> bool:
@@ -250,6 +282,10 @@ class ReverseReader(BaseVideoReader):
 
     def set_frame(self, frame_id: int) -> None:
         self.buffer.set(frame_id)
+
+    def clear(self) -> None:
+        """Esvazia os frames armazenados no buffer."""
+        self.buffer.clear()
 
     def close(self) -> None:
         self.source._callback = lambda old, new: None
@@ -270,6 +306,7 @@ class VideoReader(BaseVideoReader):
         frames: list[int] | None = None,
         direction: Direction | str = Direction.FORWARD,
         buffersize: int = 30,
+        lazy: bool = False,
     ) -> None:
         super().__init__(
             source,
@@ -278,6 +315,7 @@ class VideoReader(BaseVideoReader):
             step=step,
             frames=frames,
             buffersize=buffersize,
+            lazy=lazy,
         )
         fps_val = round(self.fps) if self.fps and self.fps > 0 else 30
         self.buffersize_right = max(self.buffersize, fps_val)
@@ -307,9 +345,14 @@ class VideoReader(BaseVideoReader):
             self.servant = self.buf_right
             self.master = self.buf_left
 
-        if len(self.frame_ids) > 0:
+        if not self.lazy and len(self.frame_ids) > 0:
             self.servant.run()
             self.servant._buffer.wait_task()
+
+    def start(self) -> None:
+        """Inicia a coleta de frames em segundo plano."""
+        if len(self.frame_ids) > 0:
+            self.servant.run()
 
     @classmethod
     def from_default(
@@ -324,6 +367,7 @@ class VideoReader(BaseVideoReader):
         buffersize: int | None = None,
         fps: float | None = None,
         backend: type[IFrameSource] | str | None = None,
+        lazy: bool = False,
     ) -> Self:
         """Create a VideoReader using the default IFrameSource resolved by SourceRegistry."""
         actual_buffersize = buffersize if buffersize is not None else config.buffersize
@@ -338,6 +382,7 @@ class VideoReader(BaseVideoReader):
             frames=frames,
             direction=direction,
             buffersize=actual_buffersize,
+            lazy=lazy,
         )
 
     @property
@@ -387,6 +432,12 @@ class VideoReader(BaseVideoReader):
     def set_frame(self, frame_id: int) -> None:
         self.servant.set(frame_id)
         self.master.set(frame_id)
+
+    def clear(self) -> None:
+        """Esvazia os frames armazenados em ambos os buffers (ativo e passivo)."""
+        self.buf_right.clear()
+        self.buf_left.clear()
+        self._frame_id = None
 
     def close(self) -> None:
         self.source._callback = lambda old, new: None

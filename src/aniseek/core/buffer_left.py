@@ -373,3 +373,8 @@ class VideoBufferLeft(IVideoBuffer):
 
     def mapper_id(self, index: int) -> int:
         return self.__mapping[index]
+
+    def clear(self) -> None:
+        """Esvazia os frames armazenados no buffer."""
+        self._buffer.clear_buffer()
+        self.__frame_id = None

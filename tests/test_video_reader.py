@@ -463,3 +463,86 @@ def test_video_readers_expose_source_size(synthetic_cap, reader_cls):
     reader.close()
 
     assert size == (640, 480)
+
+
+def test_video_reader_lazy_auto_start_on_read(synthetic_cap):
+    """Aciona a leitura sob demanda no primeiro read quando lazy for verdadeiro."""
+    with VideoReader(synthetic_cap, start=0, end=5, buffersize=10, lazy=True) as reader:
+        assert reader.lazy is True
+        ret, frame = reader.read()
+        assert ret is True
+        assert frame is not None
+        assert reader.frame_id == 0
+
+
+def test_video_reader_lazy_manual_start(synthetic_cap):
+    """Inicia a coleta explicitamente via metodo start em modo lazy."""
+    with VideoReader(synthetic_cap, start=0, end=5, buffersize=10, lazy=True) as reader:
+        reader.start()
+        ret, frame = reader.read()
+        assert ret is True
+        assert frame is not None
+        assert reader.frame_id == 0
+
+
+def test_forward_reader_lazy(synthetic_cap):
+    """Valida leitura sequencial direta inicializada com lazy verdadeiro."""
+    with ForwardReader(synthetic_cap, start=0, end=5, buffersize=10, lazy=True) as reader:
+        assert reader.lazy is True
+        ret, frame = reader.read()
+        assert ret is True
+        assert frame is not None
+        assert reader.frame_id == 0
+
+
+def test_reverse_reader_lazy(synthetic_cap):
+    """Valida leitura sequencial reversa inicializada com lazy verdadeiro."""
+    with ReverseReader(synthetic_cap, start=0, end=5, buffersize=10, lazy=True) as reader:
+        assert reader.lazy is True
+        ret, frame = reader.read()
+        assert ret is True
+        assert frame is not None
+        assert reader.frame_id == 4
+
+
+def test_video_reader_from_default_lazy(tmp_path, monkeypatch, mock_video_capture):
+    """Construtor from_default repassa o parametro lazy corretamente."""
+    dummy_video = tmp_path / "video.mp4"
+    dummy_video.touch()
+    monkeypatch.setattr(
+        "aniseek.core.sources.opencv.cv2.VideoCapture",
+        lambda _: mock_video_capture,
+    )
+
+    with VideoReader.from_default(dummy_video, start=0, end=5, lazy=True) as reader:
+        assert reader.lazy is True
+        ret, frame = reader.read()
+        assert ret is True
+        assert frame is not None
+        assert reader.frame_id == 0
+
+
+def test_video_reader_clear(synthetic_cap):
+    """Esvazia os buffers em memoria de ambas as direcoes no VideoReader."""
+    with VideoReader(synthetic_cap, start=0, end=10, buffersize=10) as reader:
+        reader.read()
+        reader.clear()
+        assert len(reader.buf_right._buffer._primary) == 0
+        assert len(reader.buf_left._buffer._primary) == 0
+        assert reader.frame_id is None
+
+
+def test_forward_reader_clear(synthetic_cap):
+    """Esvazia os frames armazenados no buffer do ForwardReader."""
+    with ForwardReader(synthetic_cap, start=0, end=10, buffersize=10) as reader:
+        reader.read()
+        reader.clear()
+        assert len(reader.buffer._buffer._primary) == 0
+
+
+def test_reverse_reader_clear(synthetic_cap):
+    """Esvazia os frames armazenados no buffer do ReverseReader."""
+    with ReverseReader(synthetic_cap, start=0, end=10, buffersize=10) as reader:
+        reader.read()
+        reader.clear()
+        assert len(reader.buffer._buffer._primary) == 0

@@ -49,6 +49,11 @@ class IVideoBuffer(ABC):
         ...
 
     @abstractmethod
+    def clear(self) -> None:
+        """Esvazia os frames armazenados no buffer."""
+        ...
+
+    @abstractmethod
     def join(self) -> None:
         """Aguarda a finalização da thread e libera a fonte de captura."""
         ...
@@ -118,6 +123,9 @@ class IFakeVideoBuffer(IVideoBuffer):
         pass
 
     def run(self) -> None:
+        pass
+
+    def clear(self) -> None:
         pass
 
     def join(self) -> None:
