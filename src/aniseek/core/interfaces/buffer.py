@@ -85,6 +85,11 @@ class IVideoBuffer(ABC):
         ...
 
     @abstractmethod
+    def __contains__(self, frame_id: int) -> bool:
+        """Verifica se o frame_id está presente no buffer."""
+        ...
+
+    @abstractmethod
     def mapper_id(self, index: int) -> int:
         """Retorna o frame_id correspondente ao índice no mapeamento."""
         ...
@@ -146,6 +151,9 @@ class IFakeVideoBuffer(IVideoBuffer):
 
     def __getitem__(self, index: int) -> int | None:
         return None
+
+    def __contains__(self, frame_id: int) -> bool:
+        return False
 
     def mapper_id(self, index: int) -> int:
         return index

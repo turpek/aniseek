@@ -75,6 +75,11 @@ class Buffer(ABC, Channel1):
     def __len__(self):
         return len(self._primary)
 
+    def __contains__(self, frame_id: int) -> bool:
+        if self.empty() and (not self.task_is_done() or not self.secondary_empty()):
+            self.unqueue()
+        return any(item[0] == frame_id for item in self._primary)
+
     def _wait_until_fill(self) -> None:
         # Espera a task ser concluida no caso em que o buffer estiver vazio!
         if self.empty():

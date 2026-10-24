@@ -92,6 +92,9 @@ class VideoBufferRight(IVideoBuffer):
             return None
         return self._buffer[index]
 
+    def __contains__(self, frame_id: int) -> bool:
+        return frame_id in self._buffer
+
     def __start(self) -> None:
         """
         Inicia a thread.

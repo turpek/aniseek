@@ -66,6 +66,17 @@ class BaseVideoReader(ABC):
     def __len__(self) -> int:
         return len(self.frame_ids)
 
+    @abstractmethod
+    def __contains__(self, frame_id: int) -> bool:
+        """Verifica se o frame_id está presente no buffer do leitor."""
+        pass
+
+    @property
+    @abstractmethod
+    def is_reverse(self) -> bool:
+        """Indica se o leitor opera em sentido reverso (-1)."""
+        pass
+
     @property
     def size(self) -> tuple[int, int]:
         """Video frame dimensions as (width, height) in pixels."""
@@ -188,6 +199,13 @@ class ForwardReader(BaseVideoReader):
             self.buffer.run()
             self.buffer._buffer.wait_task()
 
+    def __contains__(self, frame_id: int) -> bool:
+        return frame_id in self.buffer
+
+    @property
+    def is_reverse(self) -> bool:
+        return False
+
     def start(self) -> None:
         """Inicia a coleta de frames em segundo plano."""
         if len(self.frame_ids) > 0:
@@ -258,6 +276,13 @@ class ReverseReader(BaseVideoReader):
             if not self.lazy:
                 self.buffer.run()
                 self.buffer._buffer.wait_task()
+
+    def __contains__(self, frame_id: int) -> bool:
+        return frame_id in self.buffer
+
+    @property
+    def is_reverse(self) -> bool:
+        return True
 
     def start(self) -> None:
         """Inicia a coleta reversa de frames em segundo plano."""
@@ -348,6 +373,9 @@ class VideoReader(BaseVideoReader):
         if not self.lazy and len(self.frame_ids) > 0:
             self.servant.run()
             self.servant._buffer.wait_task()
+
+    def __contains__(self, frame_id: int) -> bool:
+        return frame_id in self.servant
 
     def start(self) -> None:
         """Inicia a coleta de frames em segundo plano."""
